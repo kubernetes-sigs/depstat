@@ -9,11 +9,15 @@
 
 ### Current Progress
 
+To test all commands first -> Clone the repo. `cd` into the project folder.
+
 1. Implemented a basic version of `grep`
-   1. Clone the repo. `cd` into the project folder.
-   2. Run `go run main.go showdep --file ./something.txt -s From` to see the lines having "From" in the the "something.txt" file.
+   1. Run `go run main.go showdep --file ./something.txt -s From` to see the lines having "From" in the the "something.txt" file.
+2. Implemented a basic version of `wget`
+   1. Run `go run main.go wgetclone -u https://github.com/kubernetes/kubernetes/pull/98946.patch -f output.txt` to get the output of the "URL" in an "output.txt" file.
 
 ### References
 
 1. https://hackmd.io/@XYdYH0X5SYC3DUYFF5Wylg/rJimEo--u
 2. https://www.kaynetik.com/blog/simple-cli-tool/
+3. https://github.com/jeremywho/gowget

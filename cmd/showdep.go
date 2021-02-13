@@ -50,16 +50,12 @@ func searchFile(path, sTerm string) (string, error) {
 		return "", err
 	}
 
-	line := 1
-	var lines int
-	res := make([]string, lines)
+	var res []string
 	for scanner.Scan() {
 		// if the search term is found on the current line, append it to the resulting slice
 		if strings.Contains(scanner.Text(), sTerm) {
 			res = append(res, scanner.Text())
 		}
-
-		line++
 	}
 
 	if err := scanner.Err(); err != nil {
