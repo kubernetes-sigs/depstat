@@ -22,10 +22,18 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("showdep called")
-		filename, _ := cmd.Flags().GetString("file")
-		sTerm, _ := cmd.Flags().GetString("sterm")
-
-		res, _ := searchFile(filename, sTerm)
+		filename, err := cmd.Flags().GetString("file")
+		if err != nil {
+			fmt.Printf("Couldn't get file: %v", err)
+		}
+		sTerm, err := cmd.Flags().GetString("sterm")
+		if err != nil {
+			fmt.Printf("Couldn't get string: %v", err)
+		}
+		res, err := searchFile(filename, sTerm)
+		if err != nil {
+			fmt.Println(err)
+		}
 		fmt.Println(res)
 	},
 }
@@ -44,28 +52,28 @@ func init() {
 	// is called directly, e.g.:
 	// showdepCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
+
 func searchFile(path, sTerm string) (string, error) {
 	scanner, err := openFile(path)
 	if err != nil {
 		return "", err
 	}
-
 	var res []string
+	const maxCapacity = 1024 * 1024
+	buf := make([]byte, maxCapacity)
+	scanner.Buffer(buf, maxCapacity)
 	for scanner.Scan() {
 		// if the search term is found on the current line, append it to the resulting slice
 		if strings.Contains(scanner.Text(), sTerm) {
 			res = append(res, scanner.Text())
 		}
 	}
-
 	if err := scanner.Err(); err != nil {
-		return "", errors.New("an error occurred: ")
+		return "", err
 	}
-
 	if len(res) < 1 {
 		return "", errors.New("nothing found by that search term")
 	}
-
 	return buildStrFromSlice(res), nil
 }
 
@@ -74,7 +82,6 @@ func openFile(path string) (*bufio.Scanner, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return bufio.NewScanner(f), nil
 }
 

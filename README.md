@@ -21,3 +21,4 @@ To test all commands first -> Clone the repo. `cd` into the project folder.
 1. https://hackmd.io/@XYdYH0X5SYC3DUYFF5Wylg/rJimEo--u
 2. https://www.kaynetik.com/blog/simple-cli-tool/
 3. https://github.com/jeremywho/gowget
+4. https://stackoverflow.com/questions/39859222/golang-how-to-overcome-scan-buffer-limit-from-bufio
