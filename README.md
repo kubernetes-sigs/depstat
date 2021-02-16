@@ -1,20 +1,26 @@
 # Dependency Analyzer POC
 
+Proof of concept for a dependency analyzer CLI tool.
+
 ### Overall workflow
 
-1. Implement functionality of `wget` and fetch the GitHub patch file from URL which is entered as an argument.
-2. Process this output to a text file.
-3. Implement functionality of `grep` to process this file to get the list of dependencies from it.
-4. Provide output in a customized format based on the command run or flags used.
+The main command is been worked upon in the [`cmd/showdep.go`](./cmd/showdep.go) file. Clones of standard commands are present in `cmd/*clone.go` files.
 
-### Current Progress
+1. See original output using:
 
-To test all commands first -> Clone the repo. `cd` into the project folder.
+   1. `wget https://github.com/kubernetes/kubernetes/pull/98946.patch`
+   2. `grep b/LICENSES 98946.patch | grep -v diff | cut -f 4- -d '/' | sed 's/\/LICENSE//' | xargs -L 1 echo`
 
-1. Implemented a basic version of `grep`
-   1. Run `go run main.go showdep --file ./something.txt -s From` to see the lines having "From" in the the "something.txt" file.
-2. Implemented a basic version of `wget`
-   1. Run `go run main.go wgetclone -u https://github.com/kubernetes/kubernetes/pull/98946.patch -f output.txt` to get the output of the "URL" in an "output.txt" file.
+2. See output of tool (work in progress): `go run main.go showdep -u https://github.com/kubernetes/kubernetes/pull/98946.patch`
+
+### Clones of standard commands
+
+To check out individual commands:
+
+1. `grep`:
+   1. Run `go run main.go grepclone --file ./grepCloneTest.txt -s From` to see the lines having "From" in the "grepCloneTest.txt" file.
+2. `wget`:
+   1. Run `go run main.go wgetclone -u https://github.com/kubernetes/kubernetes/pull/98946.patch -f output2.txt` to get the output of the "URL" in an "output2.txt" file.
 
 ### References
 

@@ -30,7 +30,7 @@ to quickly create a Cobra application.`,
 		if err != nil {
 			fmt.Printf("Couldn't get string: %v", err)
 		}
-		res, err := searchFile(filename, sTerm)
+		res, err := searchFile(filename, sTerm, false)
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -53,7 +53,8 @@ func init() {
 	// grepcloneCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
-func searchFile(path, sTerm string) (string, error) {
+// not = true is like -v flag of grep
+func searchFile(path, sTerm string, not bool) (string, error) {
 	scanner, err := openFile(path)
 	if err != nil {
 		return "", err
@@ -64,8 +65,14 @@ func searchFile(path, sTerm string) (string, error) {
 	scanner.Buffer(buf, maxCapacity)
 	for scanner.Scan() {
 		// if the search term is found on the current line, append it to the resulting slice
-		if strings.Contains(scanner.Text(), sTerm) {
-			res = append(res, scanner.Text())
+		if not {
+			if !strings.Contains(scanner.Text(), sTerm) {
+				res = append(res, scanner.Text())
+			}
+		} else {
+			if strings.Contains(scanner.Text(), sTerm) {
+				res = append(res, scanner.Text())
+			}
 		}
 	}
 	if err := scanner.Err(); err != nil {

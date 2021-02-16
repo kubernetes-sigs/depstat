@@ -39,26 +39,48 @@ to quickly create a Cobra application.`,
 		src := &PassThru{Reader: resp.Body, total: float64(resp.ContentLength)}
 		size, err := io.Copy(out, src)
 		if err != nil {
-			fmt.Println(err)
+			log.Fatal(err)
 			return
 		}
 		fmt.Printf("\nFile Transferred. (%.1f MB)\n", float64(size)/bytesToMegaBytes)
 
 		// search file for key
-		res, err := searchFile("output.txt", "b/LICENSES")
+		res, err := searchFile("output.txt", "b/LICENSES", false)
 		if err != nil {
-			fmt.Println(err)
+			log.Fatal(err)
 		}
-		fmt.Println(res)
 
 		// replace file contents with search result
+		err = os.Remove("output.txt")
+		if err != nil {
+			log.Fatal(err)
+		}
+		f, err := os.Create("output.txt")
+
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		defer f.Close()
+
+		_, err2 := f.WriteString(res)
+
+		if err2 != nil {
+			log.Fatal(err2)
+		}
+
+		fmt.Println("re-created output.txt")
 
 		// search updated file for key
+		res, err = searchFile("output.txt", "diff", true)
+		if err != nil {
+			log.Fatal(err)
+		}
 
 		// do some modifications
 
-		// show result
-
+		// show result and clean up
+		fmt.Println(res)
 	},
 }
 

@@ -36,6 +36,7 @@ to quickly create a Cobra application.`,
 		file, _ := cmd.Flags().GetString("file")
 		resp, err := http.Get(url)
 		if err != nil {
+			fmt.Printf("Hello")
 			log.Fatalln(err)
 		}
 		defer resp.Body.Close() // we need to remember to close the response body otherwise might have resource leaks
