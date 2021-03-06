@@ -39,12 +39,58 @@ to quickly create a Cobra application.`,
 		// for k, v := range graph {
 		// 	fmt.Println(k, v)
 		// }
-		fmt.Println(graph["test-proj"][0])
+		//fmt.Println(graph["test-proj"][0])
 
+		// get number of keys in graph
+
+		// dp := make(map[string]int)
+		// visited := make(map[string]bool)
+		// for k := range graph {
+		// 	dp[k] = 0
+		// 	visited[k] = false
+		// }
+		// for k := range graph {
+		// 	if visited[k] == false {
+		// 		dfs(k, graph, dp, visited)
+		// 	}
+		// }
+		//fmt.Println(dp["test-proj"])
+		fmt.Println(getLen("test-proj", graph))
 		return nil
 	},
 }
 
+// Longest Path in Acyclic Graph:
+// func dfs(k string, graph map[string][]string, dp map[string]int, visited map[string]bool) {
+
+// 	visited[k] = true
+// 	for _, u := range graph[k] {
+// 		if visited[u] == false {
+// 			dfs(u, graph, dp, visited)
+// 		}
+// 		dp[k] = Max(dp[k], 1+dp[u])
+// 	}
+// }
+
+// My Logic:
+func getLen(node string, graph map[string][]string) int {
+	if _, ok := graph[node]; !ok {
+		return 0
+	}
+	len := 0
+	for _, nextNode := range graph[node] {
+		len = Max(len, getLen(nextNode, graph))
+	}
+	return len + 1
+}
+
+// Max finds max of two numbers
+func Max(x, y int) int {
+	if x < y {
+		return y
+	}
+	return x
+}
 func init() {
 	rootCmd.AddCommand(maxDepthCmd)
 
