@@ -62,8 +62,11 @@ to quickly create a Cobra application.`,
 			fmt.Println(k)
 		}
 
+		// Prepare DP stuff for max depth
 		dp := make(map[string]int)
 		visited := make(map[string]bool)
+		// values not in map will have their respective 0 value by default
+		// so need to worry about terminal nodes
 		for k := range depGraph {
 			dp[k] = 0
 			visited[k] = false
@@ -73,7 +76,6 @@ to quickly create a Cobra application.`,
 				dfs(k, depGraph, dp, visited)
 			}
 		}
-		//fmt.Println(dp["test-proj"])
 
 		// get values
 		totalDeps := len(deps) - 1 // -1 for main module name
