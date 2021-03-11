@@ -24,6 +24,12 @@ to quickly create a Cobra application.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Println("analyzeDeps called")
 
+		// get flags
+		verbose, err := cmd.Flags().GetBool("verbose")
+		if err != nil {
+			return err
+		}
+
 		// get output of "go mod graph" in a string
 		goModGraph := exec.Command("go", "mod", "graph")
 		goModGraphOutput, err := goModGraph.Output()
@@ -35,12 +41,12 @@ to quickly create a Cobra application.`,
 		// create a graph of dependencies from that output
 		depGraph := make(map[string][]string)
 		scanner := bufio.NewScanner(strings.NewReader(goModGraphOutputString))
-		deps := make(map[string]bool) // since no contains method for slices
+		deps := make(map[string]bool) // since can't do slice.contains so better to use map
 		moduleName := "notset"
 		for scanner.Scan() {
 			line := scanner.Text()
 			words := strings.Fields(line)
-			// remove same versions
+			// remove versions
 			words[0] = (strings.Split(words[0], "@"))[0]
 			words[1] = (strings.Split(words[1], "@"))[0]
 			if moduleName == "notset" {
@@ -53,27 +59,69 @@ to quickly create a Cobra application.`,
 			_, ok = deps[words[1]]
 			if !ok {
 				deps[words[1]] = true
+			} 
+			if !contains(depGraph[words[0]], words[1]) {
+				depGraph[words[0]] = append(depGraph[words[0]], words[1])
 			}
-			depGraph[words[0]] = append(depGraph[words[0]], words[1])
-
 		}
 
-		for k := range deps {
-			fmt.Println(k)
+		if verbose {
+			fmt.Println("All dependencies:")
+			for k := range deps {
+				if k == moduleName {
+					continue
+				}
+				fmt.Println(k)
+			}
+			fmt.Println()
 		}
 
 		// Prepare DP stuff for max depth
 		dp := make(map[string]int)
 		visited := make(map[string]bool)
+
 		// values not in map will have their respective 0 value by default
 		// so need to worry about terminal nodes
 		for k := range depGraph {
 			dp[k] = 0
 			visited[k] = false
 		}
+		longestPath := make(map[string]string)
 		for k := range depGraph {
 			if visited[k] == false {
-				dfs(k, depGraph, dp, visited)
+				dfs(k, depGraph, dp, visited, longestPath)
+			}
+		}
+
+		// for each dependency the DP array has the longest path starting
+		// from that dependency
+
+		// show the longest dependency chain
+		// if verbose {
+		// 	cur := moduleName
+		// 	pathVisited := make(map[string]bool)
+		// 	for dp[cur] != 0 {
+		// 		pathVisited[cur] = true
+		// 		fmt.Print(cur + " -> ")
+		// 		nextDep := ""
+		// 		for _, depOfCur := range depGraph[cur] {
+		// 			if pathVisited[depOfCur] == false {
+		// 				if dp[depOfCur] >= dp[nextDep] {
+		// 					nextDep = depOfCur
+		// 				}
+		// 			}
+		// 		}
+		// 		cur = nextDep
+		// 	}
+		// 	fmt.Printf(cur)
+		// 	fmt.Println()
+		// }
+
+		if verbose {
+			cur := moduleName
+			for cur!=""{
+				fmt.Print(cur+" -> ")
+				cur = longestPath[cur]
 			}
 		}
 
@@ -107,9 +155,19 @@ to quickly create a Cobra application.`,
 	},
 }
 
+func contains(s []string, str string) bool {
+	for _, v := range s {
+		if v == str {
+			return true
+		}
+	}
+
+	return false
+}
+
 func init() {
 	rootCmd.AddCommand(analyzeDepsCmd)
-
+	analyzeDepsCmd.Flags().BoolP("verbose", "v", false, "Get additional details")
 	// Here you will define your flags and configuration settings.
 
 	// Cobra supports Persistent Flags which will work for this command

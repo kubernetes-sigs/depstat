@@ -61,14 +61,16 @@ to quickly create a Cobra application.`,
 }
 
 // Longest Path in Acyclic Graph:
-func dfs(k string, graph map[string][]string, dp map[string]int, visited map[string]bool) {
-
+func dfs(k string, graph map[string][]string, dp map[string]int, visited map[string]bool, longestPath map[string]string) {
 	visited[k] = true
 	for _, u := range graph[k] {
 		if visited[u] == false {
-			dfs(u, graph, dp, visited)
+			dfs(u, graph, dp, visited,longestPath)
 		}
 		dp[k] = Max(dp[k], 1+dp[u])
+		if dp[k] == 1 +dp[u] {
+			longestPath[k]=u
+		}
 	}
 }
 
