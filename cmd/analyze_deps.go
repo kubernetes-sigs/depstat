@@ -41,16 +41,20 @@ to quickly create a Cobra application.`,
 		// create a graph of dependencies from that output
 		depGraph := make(map[string][]string)
 		scanner := bufio.NewScanner(strings.NewReader(goModGraphOutputString))
-		deps := make(map[string]bool) // since can't do slice.contains so better to use map
-		moduleName := "notset"
+
+		// deps will all the dependencies
+		// since can't do slice.contains so better to use map
+		deps := make(map[string]bool)
+		mainModule := "notset"
+
 		for scanner.Scan() {
 			line := scanner.Text()
 			words := strings.Fields(line)
 			// remove versions
 			words[0] = (strings.Split(words[0], "@"))[0]
 			words[1] = (strings.Split(words[1], "@"))[0]
-			if moduleName == "notset" {
-				moduleName = words[0]
+			if mainModule == "notset" {
+				mainModule = words[0]
 			}
 			_, ok := deps[words[0]]
 			if !ok {
@@ -59,7 +63,7 @@ to quickly create a Cobra application.`,
 			_, ok = deps[words[1]]
 			if !ok {
 				deps[words[1]] = true
-			} 
+			}
 			if !contains(depGraph[words[0]], words[1]) {
 				depGraph[words[0]] = append(depGraph[words[0]], words[1])
 			}
@@ -68,7 +72,7 @@ to quickly create a Cobra application.`,
 		if verbose {
 			fmt.Println("All dependencies:")
 			for k := range deps {
-				if k == moduleName {
+				if k == mainModule {
 					continue
 				}
 				fmt.Println(k)
@@ -76,8 +80,10 @@ to quickly create a Cobra application.`,
 			fmt.Println()
 		}
 
-		// Prepare DP stuff for max depth
+		// Prepare Dynamic Programming arrays for max depth
+		// dp[k] = max depth of dependencies starting from dependency "k"
 		dp := make(map[string]int)
+		// visited array will make sure we don't have infinite recursion
 		visited := make(map[string]bool)
 
 		// values not in map will have their respective 0 value by default
@@ -86,7 +92,11 @@ to quickly create a Cobra application.`,
 			dp[k] = 0
 			visited[k] = false
 		}
+		// longestPath[k] = u means the from dependency "k" going to
+		// dependency "u" will result in the longest path
 		longestPath := make(map[string]string)
+
+		// maps are pass by reference in golang
 		for k := range depGraph {
 			if visited[k] == false {
 				dfs(k, depGraph, dp, visited, longestPath)
@@ -96,9 +106,9 @@ to quickly create a Cobra application.`,
 		// for each dependency the DP array has the longest path starting
 		// from that dependency
 
-		// show the longest dependency chain
+		// show the longest dependency chain (not working):
 		// if verbose {
-		// 	cur := moduleName
+		// 	cur := mainModule
 		// 	pathVisited := make(map[string]bool)
 		// 	for dp[cur] != 0 {
 		// 		pathVisited[cur] = true
@@ -117,18 +127,25 @@ to quickly create a Cobra application.`,
 		// 	fmt.Println()
 		// }
 
+		// also not working:
 		if verbose {
-			cur := moduleName
-			for cur!=""{
-				fmt.Print(cur+" -> ")
+			cur := mainModule
+			// have visited array here too
+			// vis := make(map[string]bool)
+			for cur != "" {
+				// vis[cur] = true
+				fmt.Print(cur + " -> ")
 				cur = longestPath[cur]
+				// if vis[cur] == true {
+				// 	break
+				// }
 			}
 		}
 
 		// get values
 		totalDeps := len(deps) - 1 // -1 for main module name
-		maxDepth := dp[moduleName]
-		directDeps := len(depGraph[moduleName])
+		maxDepth := dp[mainModule]
+		directDeps := len(depGraph[mainModule])
 		transitiveDeps := totalDeps - directDeps
 
 		// create json
@@ -149,20 +166,8 @@ to quickly create a Cobra application.`,
 		if err != nil {
 			return err
 		}
-
 		return nil
-
 	},
-}
-
-func contains(s []string, str string) bool {
-	for _, v := range s {
-		if v == str {
-			return true
-		}
-	}
-
-	return false
 }
 
 func init() {
