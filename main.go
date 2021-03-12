@@ -1,6 +1,6 @@
 package main
 
-import "./cmd"
+import "github.com/RinkiyaKeDad/dependency-analyzer-poc/cmd"
 
 func main() {
 	cmd.Execute()
