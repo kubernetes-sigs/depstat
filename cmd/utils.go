@@ -1,7 +1,7 @@
 package cmd
 
 func max(x, y int) int {
-	if x < y {
+	if x <= y {
 		return y
 	}
 	return x
