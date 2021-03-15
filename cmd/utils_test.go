@@ -8,15 +8,15 @@ func Test_dfs_simple(t *testing.T) {
 
 	/*
 		Graph:
-					 A
-				   / | \
-				  B  C  D
-				   \/   |
-					E	G
-					|
-					F
-					|
-					H
+				  A
+				/ | \
+			   B  C  D
+				\/   |
+				E	G
+				|
+				F
+				|
+				H
 	*/
 
 	graph := make(map[string][]string)
