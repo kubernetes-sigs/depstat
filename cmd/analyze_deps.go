@@ -42,7 +42,7 @@ to quickly create a Cobra application.`,
 		depGraph := make(map[string][]string)
 		scanner := bufio.NewScanner(strings.NewReader(goModGraphOutputString))
 
-		// deps will all the dependencies
+		// deps will store all the dependencies
 		// since can't do slice.contains so better to use map
 		deps := make(map[string]bool)
 		mainModule := "notset"
@@ -56,14 +56,10 @@ to quickly create a Cobra application.`,
 			if mainModule == "notset" {
 				mainModule = words[0]
 			}
-			_, ok := deps[words[0]]
-			if !ok {
-				deps[words[0]] = true
-			}
-			_, ok = deps[words[1]]
-			if !ok {
-				deps[words[1]] = true
-			}
+			deps[words[0]] = true
+			deps[words[1]] = true
+
+			// we don't want to add the same dep again
 			if !contains(depGraph[words[0]], words[1]) {
 				depGraph[words[0]] = append(depGraph[words[0]], words[1])
 			}
@@ -92,12 +88,12 @@ to quickly create a Cobra application.`,
 			dp[k] = 0
 			visited[k] = false
 		}
-		// longestPath[k] = u means the from dependency "k" going to
+		// longestPath[k] = u means that from dependency "k" going to
 		// dependency "u" will result in the longest path
 		longestPath := make(map[string]string)
 
 		// maps are pass by reference in golang
-		for k := range depGraph {
+		for k := range deps {
 			if visited[k] == false {
 				dfs(k, depGraph, dp, visited, longestPath)
 			}
@@ -131,9 +127,9 @@ to quickly create a Cobra application.`,
 		if verbose {
 			cur := mainModule
 			// have visited array here too
-			// vis := make(map[string]bool)
-			for cur != "" {
-				// vis[cur] = true
+			vis := make(map[string]bool)
+			for vis[cur] == false {
+				vis[cur] = true
 				fmt.Print(cur + " -> ")
 				cur = longestPath[cur]
 				// if vis[cur] == true {
