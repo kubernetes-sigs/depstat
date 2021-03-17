@@ -84,7 +84,7 @@ to quickly create a Cobra application.`,
 
 		// values not in map will have their respective 0 value by default
 		// so need to worry about terminal nodes
-		for k := range depGraph {
+		for k := range deps {
 			dp[k] = 0
 			visited[k] = false
 		}
