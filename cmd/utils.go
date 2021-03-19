@@ -17,8 +17,8 @@ func dfs(k string, graph map[string][]string, dp map[string]int, visited map[str
 		if visited[u] == false {
 			dfs(u, graph, dp, visited, longestPath)
 		}
-		dp[k] = max(dp[k], 1+dp[u])
-		if dp[k] == 1+dp[u] {
+		if dp[k] < 1+dp[u] {
+			dp[k] = 1 + dp[u]
 			longestPath[k] = u
 		}
 	}
