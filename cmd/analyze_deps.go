@@ -44,7 +44,7 @@ to quickly create a Cobra application.`,
 
 		// deps will store all the dependencies
 		// since can't do slice.contains so better to use map
-		deps := make(map[string]bool)
+		var deps []string
 		mainModule := "notset"
 
 		for scanner.Scan() {
@@ -56,8 +56,12 @@ to quickly create a Cobra application.`,
 			if mainModule == "notset" {
 				mainModule = words[0]
 			}
-			deps[words[0]] = true
-			deps[words[1]] = true
+			if !contains(deps, words[0]) {
+				deps = append(deps, words[0])
+			}
+			if !contains(deps, words[1]) {
+				deps = append(deps, words[1])
+			}
 
 			// we don't want to add the same dep again
 			if !contains(depGraph[words[0]], words[1]) {
@@ -67,11 +71,11 @@ to quickly create a Cobra application.`,
 
 		if verbose {
 			fmt.Println("All dependencies:")
-			for k := range deps {
-				if k == mainModule {
+			for _, v := range deps {
+				if v == mainModule {
 					continue
 				}
-				fmt.Println(k)
+				fmt.Println(v)
 			}
 			fmt.Println()
 		}
@@ -84,44 +88,17 @@ to quickly create a Cobra application.`,
 
 		// values not in map will have their respective 0 value by default
 		// so need to worry about terminal nodes
-		for k := range deps {
-			dp[k] = 0
-			visited[k] = false
+		for _, v := range deps {
+			dp[v] = 0
+			visited[v] = false
 		}
 		// longestPath[k] = u means that from dependency "k" going to
 		// dependency "u" will result in the longest path
 		longestPath := make(map[string]string)
 
 		// maps are pass by reference in golang
-		for k := range deps {
-			if visited[k] == false {
-				dfs(k, depGraph, dp, visited, longestPath)
-			}
-		}
-
-		// for each dependency the DP array has the longest path starting
-		// from that dependency
-
-		// show the longest dependency chain (not working):
-		// if verbose {
-		// 	cur := mainModule
-		// 	pathVisited := make(map[string]bool)
-		// 	for dp[cur] != 0 {
-		// 		pathVisited[cur] = true
-		// 		fmt.Print(cur + " -> ")
-		// 		nextDep := ""
-		// 		for _, depOfCur := range depGraph[cur] {
-		// 			if pathVisited[depOfCur] == false {
-		// 				if dp[depOfCur] >= dp[nextDep] {
-		// 					nextDep = depOfCur
-		// 				}
-		// 			}
-		// 		}
-		// 		cur = nextDep
-		// 	}
-		// 	fmt.Printf(cur)
-		// 	fmt.Println()
-		// }
+		// longest path would always start from the main module
+		dfs(mainModule, depGraph, dp, visited, longestPath)
 
 		// also not working:
 		if verbose {
