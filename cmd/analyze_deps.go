@@ -22,7 +22,7 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		fmt.Println("analyzeDeps called")
+		fmt.Println("analyzeDeps called 1")
 
 		// get flags
 		verbose, err := cmd.Flags().GetBool("verbose")
@@ -85,12 +85,14 @@ to quickly create a Cobra application.`,
 		dp := make(map[string]int)
 		// visited array will make sure we don't have infinite recursion
 		visited := make(map[string]bool)
+		recVisited := make(map[string]bool)
 
 		// values not in map will have their respective 0 value by default
 		// so need to worry about terminal nodes
 		for _, v := range deps {
 			dp[v] = 0
 			visited[v] = false
+			recVisited[v] = false
 		}
 		// longestPath[k] = u means that from dependency "k" going to
 		// dependency "u" will result in the longest path
@@ -98,7 +100,7 @@ to quickly create a Cobra application.`,
 
 		// maps are pass by reference in golang
 		// longest path would always start from the main module
-		dfs(mainModule, depGraph, dp, visited, longestPath)
+		dfs(mainModule, depGraph, dp, visited, recVisited, longestPath)
 
 		// also not working:
 		if verbose {
