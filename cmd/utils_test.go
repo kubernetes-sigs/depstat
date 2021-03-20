@@ -83,3 +83,41 @@ func Test_dfs_cycle(t *testing.T) {
 		t.Errorf("Longest path was incorrect")
 	}
 }
+
+func Test_dfs_cycle_2(t *testing.T) {
+
+	/*
+		Graph:
+					 A
+				   /
+				  B
+				 ||
+				  C
+				/   \
+				D	E
+				 \ /
+				  F
+	*/
+
+	graph := make(map[string][]string)
+	graph["A"] = []string{"B"}
+	graph["B"] = []string{"C"}
+	graph["C"] = []string{"B", "D", "E"}
+	graph["D"] = []string{"F"}
+	graph["E"] = []string{"F"}
+
+	dp := make(map[string]int)
+	visited := make(map[string]bool)
+	longestPath := make(map[string]string)
+	for k := range graph {
+		if visited[k] == false {
+			dfs(k, graph, dp, visited, longestPath)
+		}
+	}
+	if dp["A"] != 4 {
+		t.Errorf("Max depth of dependencies was incorrect")
+	}
+	if longestPath["A"] != "B" || longestPath["B"] != "C" || longestPath["C"] != "D" || longestPath["D"] != "F" {
+		t.Errorf("Longest path was incorrect")
+	}
+}
