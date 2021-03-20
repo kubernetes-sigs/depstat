@@ -30,16 +30,17 @@ func Test_dfs_simple(t *testing.T) {
 
 	dp := make(map[string]int)
 	visited := make(map[string]bool)
+	recVisited := make(map[string]bool)
 	longestPath := make(map[string]string)
 	for k := range graph {
 		if visited[k] == false {
-			dfs(k, graph, dp, visited, longestPath)
+			dfs(k, graph, dp, visited, recVisited, longestPath)
 		}
 	}
 	if dp["A"] != 4 {
 		t.Errorf("Max depth of dependencies was incorrect")
 	}
-	if longestPath["A"] != "C" || longestPath["C"] != "E" || longestPath["E"] != "F" || longestPath["F"] != "H" {
+	if longestPath["A"] != "B" || longestPath["B"] != "E" || longestPath["E"] != "F" || longestPath["F"] != "H" {
 		t.Errorf("Longest path was incorrect")
 	}
 }
@@ -70,16 +71,19 @@ func Test_dfs_cycle(t *testing.T) {
 
 	dp := make(map[string]int)
 	visited := make(map[string]bool)
+	recVisited := make(map[string]bool)
 	longestPath := make(map[string]string)
 	for k := range graph {
 		if visited[k] == false {
-			dfs(k, graph, dp, visited, longestPath)
+			dfs(k, graph, dp, visited, recVisited, longestPath)
 		}
 	}
-	if dp["A"]-1 != 5 {
+	if dp["A"] != 5 {
 		t.Errorf("Max depth of dependencies was incorrect")
 	}
-	if longestPath["A"] != "B" || longestPath["B"] != "D" || longestPath["D"] != "F" || longestPath["F"] != "G" || longestPath["G"] != "H" || longestPath["H"] != "D" {
+	// fmt.Println("$$$$" + dp["A"] + "$$$$")
+	// fmt.Println("$$$$" + longestPath["H"] + "$$$$")
+	if longestPath["A"] != "B" || longestPath["B"] != "D" || longestPath["D"] != "F" || longestPath["F"] != "G" || longestPath["G"] != "H" {
 		t.Errorf("Longest path was incorrect")
 	}
 }
@@ -89,10 +93,10 @@ func Test_dfs_cycle_2(t *testing.T) {
 	/*
 		Graph:
 					 A
-				   /
-				  B
-				 ||
-				  C
+				   /  |
+				  B   |
+				 ||   |
+				  C --
 				/   \
 				D	E
 				 \ /
@@ -100,24 +104,26 @@ func Test_dfs_cycle_2(t *testing.T) {
 	*/
 
 	graph := make(map[string][]string)
-	graph["A"] = []string{"B"}
+	graph["A"] = []string{"B", "C"}
 	graph["B"] = []string{"C"}
-	graph["C"] = []string{"B", "D", "E"}
-	graph["D"] = []string{"F"}
+	graph["C"] = []string{"B", "E"}
+	graph["F"] = []string{"D"}
+	graph["D"] = []string{"C"}
 	graph["E"] = []string{"F"}
 
 	dp := make(map[string]int)
 	visited := make(map[string]bool)
+	recVisited := make(map[string]bool)
 	longestPath := make(map[string]string)
 	for k := range graph {
 		if visited[k] == false {
-			dfs(k, graph, dp, visited, longestPath)
+			dfs(k, graph, dp, visited, recVisited, longestPath)
 		}
 	}
-	if dp["A"] != 4 {
+	if dp["A"] != 5 {
 		t.Errorf("Max depth of dependencies was incorrect")
 	}
-	if longestPath["A"] != "B" || longestPath["B"] != "C" || longestPath["C"] != "D" || longestPath["D"] != "F" {
+	if longestPath["A"] != "B" || longestPath["B"] != "C" || longestPath["C"] != "E" || longestPath["E"] != "F" || longestPath["F"] != "D" {
 		t.Errorf("Longest path was incorrect")
 	}
 }
