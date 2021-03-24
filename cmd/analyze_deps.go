@@ -48,6 +48,8 @@ to quickly create a Cobra application.`,
 		// print the longest chain
 		if verbose {
 			fmt.Println("Longest chain is: ")
+			// maxDepth + 1 since maxDepth stores length of longest
+			// chain and chains has number of deps in chain as keys
 			printChain(chains[maxDepth+1])
 		}
 
