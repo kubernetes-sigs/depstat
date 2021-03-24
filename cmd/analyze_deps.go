@@ -1,12 +1,9 @@
 package cmd
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"os/exec"
-	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -30,98 +27,31 @@ to quickly create a Cobra application.`,
 			return err
 		}
 
-		// get output of "go mod graph" in a string
-		goModGraph := exec.Command("go", "mod", "graph")
-		goModGraphOutput, err := goModGraph.Output()
-		if err != nil {
-			return err
-		}
-		goModGraphOutputString := string(goModGraphOutput)
-
-		// create a graph of dependencies from that output
-		depGraph := make(map[string][]string)
-		scanner := bufio.NewScanner(strings.NewReader(goModGraphOutputString))
-
-		// deps will store all the dependencies
-		// since can't do slice.contains so better to use map
-		var deps []string
-		mainModule := "notset"
-
-		for scanner.Scan() {
-			line := scanner.Text()
-			words := strings.Fields(line)
-			// remove versions
-			words[0] = (strings.Split(words[0], "@"))[0]
-			words[1] = (strings.Split(words[1], "@"))[0]
-			if mainModule == "notset" {
-				mainModule = words[0]
-			}
-			if !contains(deps, words[0]) {
-				deps = append(deps, words[0])
-			}
-			if !contains(deps, words[1]) {
-				deps = append(deps, words[1])
-			}
-
-			// we don't want to add the same dep again
-			if !contains(depGraph[words[0]], words[1]) {
-				depGraph[words[0]] = append(depGraph[words[0]], words[1])
-			}
-		}
+		depGraph, deps, mainModule := getDepInfo()
 
 		if verbose {
 			fmt.Println("All dependencies:")
-			for _, v := range deps {
-				if v == mainModule {
-					continue
-				}
-				fmt.Println(v)
-			}
-			fmt.Println()
+			printDeps(deps)
 		}
 
-		// Prepare Dynamic Programming arrays for max depth
-		// dp[k] = max depth of dependencies starting from dependency "k"
-		dp := make(map[string]int)
-		// visited array will make sure we don't have infinite recursion
-		visited := make(map[string]bool)
-		recVisited := make(map[string]bool)
-
-		// values not in map will have their respective 0 value by default
-		// so need to worry about terminal nodes
-		for _, v := range deps {
-			dp[v] = 0
-			visited[v] = false
-			recVisited[v] = false
-		}
-		// longestPath[k] = u means that from dependency "k" going to
-		// dependency "u" will result in the longest path
-		longestPath := make(map[string]string)
-
-		// maps are pass by reference in golang
-		// longest path would always start from the main module
-		dfs(mainModule, depGraph, dp, visited, recVisited, longestPath)
-
-		// also not working:
-		if verbose {
-			cur := mainModule
-			// have visited array here too
-			vis := make(map[string]bool)
-			for vis[cur] == false {
-				vis[cur] = true
-				fmt.Print(cur + " -> ")
-				cur = longestPath[cur]
-				// if vis[cur] == true {
-				// 	break
-				// }
-			}
-		}
+		// Get all chains starting from main module
+		chains := make(map[int][]string)
+		var temp []string
+		getChains(mainModule, depGraph, temp, chains)
 
 		// get values
-		totalDeps := len(deps) - 1 // -1 for main module name
-		maxDepth := dp[mainModule]
+		totalDeps := len(deps)
+		maxDepth := getMaxDepth(chains)
 		directDeps := len(depGraph[mainModule])
 		transitiveDeps := totalDeps - directDeps
+
+		// print the longest chain
+		if verbose {
+			fmt.Println("Longest chain is: ")
+			// maxDepth + 1 since maxDepth stores length of longest
+			// chain and chains has number of deps in chain as keys
+			printChain(chains[maxDepth+1])
+		}
 
 		// create json
 		outputObj := struct {
