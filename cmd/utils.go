@@ -117,3 +117,16 @@ func contains(s []string, str string) bool {
 	}
 	return false
 }
+
+// compares two slices of strings
+func compare(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for iterator := 0; iterator < len(a); iterator++ {
+		if a[iterator] != b[iterator] {
+			return false
+		}
+	}
+	return true
+}

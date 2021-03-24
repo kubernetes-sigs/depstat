@@ -1,10 +1,11 @@
 package cmd
 
 import (
+	"fmt"
 	"testing"
 )
 
-func Test_dfs_simple(t *testing.T) {
+func Test_getChains_simple(t *testing.T) {
 
 	/*
 		Graph:
@@ -12,7 +13,7 @@ func Test_dfs_simple(t *testing.T) {
 				/ | \
 			   B  C  D
 				\/   |
-				E	G
+				E	 G
 				|
 				F
 				|
@@ -26,26 +27,24 @@ func Test_dfs_simple(t *testing.T) {
 	graph["D"] = []string{"G"}
 	graph["E"] = []string{"F"}
 	graph["F"] = []string{"H"}
-	graph["B"] = []string{"E"}
 
-	dp := make(map[string]int)
-	visited := make(map[string]bool)
-	recVisited := make(map[string]bool)
-	longestPath := make(map[string]string)
-	for k := range graph {
-		if visited[k] == false {
-			dfs(k, graph, dp, visited, recVisited, longestPath)
-		}
-	}
-	if dp["A"] != 4 {
+	chains := make(map[int][]string)
+	var temp []string
+	getChains("A", graph, temp, chains)
+	maxDepth := getMaxDepth(chains)
+
+	if maxDepth != 4 {
 		t.Errorf("Max depth of dependencies was incorrect")
 	}
-	if longestPath["A"] != "B" || longestPath["B"] != "E" || longestPath["E"] != "F" || longestPath["F"] != "H" {
+
+	longestPath := []string{"A", "B", "E", "F", "H"}
+
+	if compare(chains[maxDepth+1], longestPath) {
 		t.Errorf("Longest path was incorrect")
 	}
 }
 
-func Test_dfs_cycle(t *testing.T) {
+func Test_getChains_cycle(t *testing.T) {
 
 	/*
 		Graph:
@@ -69,26 +68,29 @@ func Test_dfs_cycle(t *testing.T) {
 	graph["G"] = []string{"H"}
 	graph["H"] = []string{"D"}
 
-	dp := make(map[string]int)
-	visited := make(map[string]bool)
-	recVisited := make(map[string]bool)
-	longestPath := make(map[string]string)
-	for k := range graph {
-		if visited[k] == false {
-			dfs(k, graph, dp, visited, recVisited, longestPath)
-		}
-	}
-	if dp["A"] != 5 {
+	chains := make(map[int][]string)
+	var temp []string
+	getChains("A", graph, temp, chains)
+	maxDepth := getMaxDepth(chains)
+	// fmt.Print("***")
+	// fmt.Print(maxDepth)
+	// fmt.Print("***")
+	// fmt.Print("***")
+	// fmt.Print(chains[5])
+	// fmt.Print("***")
+
+	if maxDepth != 5 {
 		t.Errorf("Max depth of dependencies was incorrect")
 	}
-	// fmt.Println("$$$$" + dp["A"] + "$$$$")
-	// fmt.Println("$$$$" + longestPath["H"] + "$$$$")
-	if longestPath["A"] != "B" || longestPath["B"] != "D" || longestPath["D"] != "F" || longestPath["F"] != "G" || longestPath["G"] != "H" {
+
+	longestPath := []string{"A", "B", "E", "F", "H"}
+
+	if compare(chains[maxDepth+1], longestPath) {
 		t.Errorf("Longest path was incorrect")
 	}
 }
 
-func Test_dfs_cycle_2(t *testing.T) {
+func Test_getChains_cycle_2(t *testing.T) {
 
 	/*
 		Graph:
@@ -107,23 +109,24 @@ func Test_dfs_cycle_2(t *testing.T) {
 	graph["A"] = []string{"B", "C"}
 	graph["B"] = []string{"C"}
 	graph["C"] = []string{"B", "E"}
+	graph["E"] = []string{"F"}
 	graph["F"] = []string{"D"}
 	graph["D"] = []string{"C"}
-	graph["E"] = []string{"F"}
 
-	dp := make(map[string]int)
-	visited := make(map[string]bool)
-	recVisited := make(map[string]bool)
-	longestPath := make(map[string]string)
-	for k := range graph {
-		if visited[k] == false {
-			dfs(k, graph, dp, visited, recVisited, longestPath)
-		}
-	}
-	if dp["A"] != 5 {
+	chains := make(map[int][]string)
+	var temp []string
+	getChains("A", graph, temp, chains)
+	maxDepth := getMaxDepth(chains)
+	fmt.Println("****")
+	fmt.Println(maxDepth)
+	fmt.Println("****")
+	if maxDepth != 5 {
 		t.Errorf("Max depth of dependencies was incorrect")
 	}
-	if longestPath["A"] != "B" || longestPath["B"] != "C" || longestPath["C"] != "E" || longestPath["E"] != "F" || longestPath["F"] != "D" {
+
+	longestPath := []string{"A", "B", "E", "F", "H"}
+
+	if compare(chains[maxDepth+1], longestPath) {
 		t.Errorf("Longest path was incorrect")
 	}
 }
