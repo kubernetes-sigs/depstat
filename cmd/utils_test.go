@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -37,9 +36,9 @@ func Test_getChains_simple(t *testing.T) {
 		t.Errorf("Max depth of dependencies was incorrect")
 	}
 
-	longestPath := []string{"A", "B", "E", "F", "H"}
+	longestPath := []string{"A", "C", "E", "F", "H"}
 
-	if compare(chains[maxDepth+1], longestPath) {
+	if !isSliceSame(chains[maxDepth+1], longestPath) {
 		t.Errorf("Longest path was incorrect")
 	}
 }
@@ -72,20 +71,13 @@ func Test_getChains_cycle(t *testing.T) {
 	var temp []string
 	getChains("A", graph, temp, chains)
 	maxDepth := getMaxDepth(chains)
-	// fmt.Print("***")
-	// fmt.Print(maxDepth)
-	// fmt.Print("***")
-	// fmt.Print("***")
-	// fmt.Print(chains[5])
-	// fmt.Print("***")
 
 	if maxDepth != 5 {
 		t.Errorf("Max depth of dependencies was incorrect")
 	}
 
-	longestPath := []string{"A", "B", "E", "F", "H"}
-
-	if compare(chains[maxDepth+1], longestPath) {
+	longestPath := []string{"A", "B", "D", "F", "G", "H"}
+	if !isSliceSame(chains[maxDepth+1], longestPath) {
 		t.Errorf("Longest path was incorrect")
 	}
 }
@@ -117,16 +109,12 @@ func Test_getChains_cycle_2(t *testing.T) {
 	var temp []string
 	getChains("A", graph, temp, chains)
 	maxDepth := getMaxDepth(chains)
-	fmt.Println("****")
-	fmt.Println(maxDepth)
-	fmt.Println("****")
 	if maxDepth != 5 {
 		t.Errorf("Max depth of dependencies was incorrect")
 	}
 
-	longestPath := []string{"A", "B", "E", "F", "H"}
-
-	if compare(chains[maxDepth+1], longestPath) {
+	longestPath := []string{"A", "B", "C", "E", "F", "D"}
+	if !isSliceSame(chains[maxDepth+1], longestPath) {
 		t.Errorf("Longest path was incorrect")
 	}
 }

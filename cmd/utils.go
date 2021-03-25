@@ -25,6 +25,8 @@ func getChains(currentDep string, graph map[string][]string, longestPath []strin
 				cpy := make([]string, len(longestPath))
 				copy(cpy, longestPath)
 				getChains(dep, graph, cpy, chains)
+			} else {
+				chains[len(longestPath)] = longestPath
 			}
 		}
 	} else {
@@ -119,7 +121,7 @@ func contains(s []string, str string) bool {
 }
 
 // compares two slices of strings
-func compare(a, b []string) bool {
+func isSliceSame(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
 	}
