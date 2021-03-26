@@ -26,6 +26,10 @@ to quickly create a Cobra application.`,
 		if err != nil {
 			return err
 		}
+		cyclesMode, err := cmd.Flags().GetBool("cycles")
+		if err != nil {
+			return err
+		}
 
 		depGraph, deps, mainModule := getDepInfo()
 
@@ -35,9 +39,12 @@ to quickly create a Cobra application.`,
 		}
 
 		// Get all chains starting from main module
+		// also get all cycles
+		cycles := make(map[int][]string)
 		chains := make(map[int][]string)
+		iter := 0
 		var temp []string
-		getChains(mainModule, depGraph, temp, chains)
+		getChains(mainModule, depGraph, temp, chains, cycles, &iter)
 
 		// get values
 		totalDeps := len(deps)
@@ -51,6 +58,37 @@ to quickly create a Cobra application.`,
 			// maxDepth + 1 since maxDepth stores length of longest
 			// chain and chains has number of deps in chain as keys
 			printChain(chains[maxDepth+1])
+		}
+
+		// print all the cycles
+		if cyclesMode {
+			fmt.Println("All cycles in dependencies are: ")
+			var visited [][]string
+			for _, cycle := range cycles {
+				var actualCycle []string
+				start := false
+				startDep := cycle[len(cycle)-1]
+				for _, val := range cycle {
+					if val == startDep {
+						start = true
+					}
+					if start {
+						actualCycle = append(actualCycle, val)
+					}
+				}
+				if !sliceContains(visited, actualCycle) {
+					visited = append(visited, actualCycle)
+				}
+			}
+			for _, c := range visited {
+				fmt.Println()
+				for _, d := range c {
+					fmt.Print(d + " -> ")
+				}
+				fmt.Println()
+
+			}
+			//fmt.Println(visited)
 		}
 
 		// create json
@@ -78,6 +116,8 @@ to quickly create a Cobra application.`,
 func init() {
 	rootCmd.AddCommand(analyzeDepsCmd)
 	analyzeDepsCmd.Flags().BoolP("verbose", "v", false, "Get additional details")
+	analyzeDepsCmd.Flags().BoolP("cycles", "c", false, "Get all the cycles")
+
 	// Here you will define your flags and configuration settings.
 
 	// Cobra supports Persistent Flags which will work for this command
