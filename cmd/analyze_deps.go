@@ -40,11 +40,13 @@ to quickly create a Cobra application.`,
 
 		// Get all chains starting from main module
 		// also get all cycles
-		cycles := make(map[int][]string)
+		// cycleChains stores the chain containing the cycles and
+		// not the actual cycle itself
+		cycleChains := make(map[int][]string)
 		chains := make(map[int][]string)
 		iter := 0
 		var temp []string
-		getChains(mainModule, depGraph, temp, chains, cycles, &iter)
+		getChains(mainModule, depGraph, temp, chains, cycleChains, &iter)
 
 		// get values
 		totalDeps := len(deps)
@@ -63,32 +65,15 @@ to quickly create a Cobra application.`,
 		// print all the cycles
 		if cyclesMode {
 			fmt.Println("All cycles in dependencies are: ")
-			var visited [][]string
-			for _, cycle := range cycles {
-				var actualCycle []string
-				start := false
-				startDep := cycle[len(cycle)-1]
-				for _, val := range cycle {
-					if val == startDep {
-						start = true
-					}
-					if start {
-						actualCycle = append(actualCycle, val)
-					}
-				}
-				if !sliceContains(visited, actualCycle) {
-					visited = append(visited, actualCycle)
-				}
-			}
-			for _, c := range visited {
+			cycles := getCycles(cycleChains)
+
+			for _, c := range cycles {
 				fmt.Println()
 				for _, d := range c {
 					fmt.Print(d + " -> ")
 				}
 				fmt.Println()
-
 			}
-			//fmt.Println(visited)
 		}
 
 		// create json

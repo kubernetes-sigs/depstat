@@ -16,7 +16,7 @@ func max(x, y int) int {
 }
 
 // find all possible chains starting from currentDep
-func getChains(currentDep string, graph map[string][]string, longestPath []string, chains map[int][]string, cycles map[int][]string, iter *int) {
+func getChains(currentDep string, graph map[string][]string, longestPath []string, chains map[int][]string, cycleChains map[int][]string, iter *int) {
 	longestPath = append(longestPath, currentDep)
 	_, ok := graph[currentDep]
 	if ok {
@@ -24,16 +24,38 @@ func getChains(currentDep string, graph map[string][]string, longestPath []strin
 			if !contains(longestPath, dep) {
 				cpy := make([]string, len(longestPath))
 				copy(cpy, longestPath)
-				getChains(dep, graph, cpy, chains, cycles, iter)
+				getChains(dep, graph, cpy, chains, cycleChains, iter)
 			} else {
 				chains[len(longestPath)] = longestPath
-				cycles[*iter] = append(longestPath, dep)
+				cycleChains[*iter] = append(longestPath, dep)
 				*iter++
 			}
 		}
 	} else {
 		chains[len(longestPath)] = longestPath
 	}
+}
+
+// gets the cycles from the cycleChains
+func getCycles(cycleChains map[int][]string) [][]string {
+	var cycles [][]string
+	for _, cycle := range cycleChains {
+		var actualCycle []string
+		start := false
+		startDep := cycle[len(cycle)-1]
+		for _, val := range cycle {
+			if val == startDep {
+				start = true
+			}
+			if start {
+				actualCycle = append(actualCycle, val)
+			}
+		}
+		if !sliceContains(cycles, actualCycle) {
+			cycles = append(cycles, actualCycle)
+		}
+	}
+	return cycles
 }
 
 // get the length of the longest dependency chain
