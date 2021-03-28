@@ -102,8 +102,6 @@ func init() {
 	analyzeDepsCmd.Flags().BoolP("verbose", "v", false, "Get additional details")
 	analyzeDepsCmd.Flags().BoolP("cycles", "c", false, "Get all the cycles")
 
-	// Here you will define your flags and configuration settings.
-
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
 	// analyzeDepsCmd.PersistentFlags().String("foo", "", "A help for foo")
