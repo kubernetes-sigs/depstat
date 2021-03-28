@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -69,9 +70,7 @@ to quickly create a Cobra application.`,
 
 			for _, c := range cycles {
 				fmt.Println()
-				for _, d := range c {
-					fmt.Print(d + " -> ")
-				}
+				fmt.Println(strings.Join(c, " -> "))
 				fmt.Println()
 			}
 		}
