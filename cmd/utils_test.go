@@ -29,9 +29,8 @@ func Test_getChains_simple(t *testing.T) {
 
 	var cycleChains [][]string
 	chains := make(map[int][]string)
-	iter := 0
 	var temp []string
-	getChains("A", graph, temp, chains, &cycleChains, &iter)
+	getChains("A", graph, temp, chains, &cycleChains)
 	maxDepth := getMaxDepth(chains)
 	cycles := getCycles(cycleChains)
 
@@ -76,9 +75,8 @@ func Test_getChains_cycle(t *testing.T) {
 
 	var cycleChains [][]string
 	chains := make(map[int][]string)
-	iter := 0
 	var temp []string
-	getChains("A", graph, temp, chains, &cycleChains, &iter)
+	getChains("A", graph, temp, chains, &cycleChains)
 	maxDepth := getMaxDepth(chains)
 	cycles := getCycles(cycleChains)
 
@@ -127,9 +125,8 @@ func Test_getChains_cycle_2(t *testing.T) {
 
 	var cycleChains [][]string
 	chains := make(map[int][]string)
-	iter := 0
 	var temp []string
-	getChains("A", graph, temp, chains, &cycleChains, &iter)
+	getChains("A", graph, temp, chains, &cycleChains)
 	maxDepth := getMaxDepth(chains)
 
 	cycles := getCycles(cycleChains)
