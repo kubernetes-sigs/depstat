@@ -16,7 +16,7 @@ func max(x, y int) int {
 }
 
 // find all possible chains starting from currentDep
-func getChains(currentDep string, graph map[string][]string, longestPath []string, chains map[int][]string, cycleChains map[int][]string, iter *int) {
+func getChains(currentDep string, graph map[string][]string, longestPath []string, chains map[int][]string, cycleChains *[][]string, iter *int) {
 	longestPath = append(longestPath, currentDep)
 	_, ok := graph[currentDep]
 	if ok {
@@ -27,7 +27,8 @@ func getChains(currentDep string, graph map[string][]string, longestPath []strin
 				getChains(dep, graph, cpy, chains, cycleChains, iter)
 			} else {
 				chains[len(longestPath)] = longestPath
-				cycleChains[*iter] = append(longestPath, dep)
+				//cycleChains[*iter] = append(longestPath, dep)
+				*cycleChains = append(*cycleChains, append(longestPath, dep))
 				*iter++
 			}
 		}
@@ -37,7 +38,7 @@ func getChains(currentDep string, graph map[string][]string, longestPath []strin
 }
 
 // gets the cycles from the cycleChains
-func getCycles(cycleChains map[int][]string) [][]string {
+func getCycles(cycleChains [][]string) [][]string {
 	var cycles [][]string
 	for _, cycle := range cycleChains {
 		var actualCycle []string
