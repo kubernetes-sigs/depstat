@@ -27,11 +27,11 @@ func Test_getChains_simple(t *testing.T) {
 	graph["E"] = []string{"F"}
 	graph["F"] = []string{"H"}
 
-	cycleChains := make(map[int][]string)
+	var cycleChains [][]string
 	chains := make(map[int][]string)
 	iter := 0
 	var temp []string
-	getChains("A", graph, temp, chains, cycleChains, &iter)
+	getChains("A", graph, temp, chains, &cycleChains, &iter)
 	maxDepth := getMaxDepth(chains)
 	cycles := getCycles(cycleChains)
 
@@ -74,11 +74,11 @@ func Test_getChains_cycle(t *testing.T) {
 	graph["G"] = []string{"H"}
 	graph["H"] = []string{"D"}
 
-	cycleChains := make(map[int][]string)
+	var cycleChains [][]string
 	chains := make(map[int][]string)
 	iter := 0
 	var temp []string
-	getChains("A", graph, temp, chains, cycleChains, &iter)
+	getChains("A", graph, temp, chains, &cycleChains, &iter)
 	maxDepth := getMaxDepth(chains)
 	cycles := getCycles(cycleChains)
 
@@ -125,11 +125,11 @@ func Test_getChains_cycle_2(t *testing.T) {
 	graph["F"] = []string{"D"}
 	graph["D"] = []string{"C"}
 
-	cycleChains := make(map[int][]string)
+	var cycleChains [][]string
 	chains := make(map[int][]string)
 	iter := 0
 	var temp []string
-	getChains("A", graph, temp, chains, cycleChains, &iter)
+	getChains("A", graph, temp, chains, &cycleChains, &iter)
 	maxDepth := getMaxDepth(chains)
 
 	cycles := getCycles(cycleChains)
