@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func Test_dfs_simple(t *testing.T) {
+func Test_getChains_simple(t *testing.T) {
 
 	/*
 		Graph:
@@ -12,7 +12,7 @@ func Test_dfs_simple(t *testing.T) {
 				/ | \
 			   B  C  D
 				\/   |
-				E	G
+				E	 G
 				|
 				F
 				|
@@ -26,26 +26,30 @@ func Test_dfs_simple(t *testing.T) {
 	graph["D"] = []string{"G"}
 	graph["E"] = []string{"F"}
 	graph["F"] = []string{"H"}
-	graph["B"] = []string{"E"}
 
-	dp := make(map[string]int)
-	visited := make(map[string]bool)
-	recVisited := make(map[string]bool)
-	longestPath := make(map[string]string)
-	for k := range graph {
-		if visited[k] == false {
-			dfs(k, graph, dp, visited, recVisited, longestPath)
-		}
+	var cycleChains [][]string
+	chains := make(map[int][]string)
+	var temp []string
+	getChains("A", graph, temp, chains, &cycleChains)
+	maxDepth := getMaxDepth(chains)
+	cycles := getCycles(cycleChains)
+
+	if len(cycles) != 0 {
+		t.Errorf("There should be no cycles")
 	}
-	if dp["A"] != 4 {
+
+	if maxDepth != 4 {
 		t.Errorf("Max depth of dependencies was incorrect")
 	}
-	if longestPath["A"] != "B" || longestPath["B"] != "E" || longestPath["E"] != "F" || longestPath["F"] != "H" {
+
+	longestPath := []string{"A", "C", "E", "F", "H"}
+
+	if !isSliceSame(chains[maxDepth+1], longestPath) {
 		t.Errorf("Longest path was incorrect")
 	}
 }
 
-func Test_dfs_cycle(t *testing.T) {
+func Test_getChains_cycle(t *testing.T) {
 
 	/*
 		Graph:
@@ -69,26 +73,34 @@ func Test_dfs_cycle(t *testing.T) {
 	graph["G"] = []string{"H"}
 	graph["H"] = []string{"D"}
 
-	dp := make(map[string]int)
-	visited := make(map[string]bool)
-	recVisited := make(map[string]bool)
-	longestPath := make(map[string]string)
-	for k := range graph {
-		if visited[k] == false {
-			dfs(k, graph, dp, visited, recVisited, longestPath)
-		}
+	var cycleChains [][]string
+	chains := make(map[int][]string)
+	var temp []string
+	getChains("A", graph, temp, chains, &cycleChains)
+	maxDepth := getMaxDepth(chains)
+	cycles := getCycles(cycleChains)
+
+	cyc := []string{"D", "F", "G", "H", "D"}
+
+	if len(cycles) != 1 {
+		t.Errorf("Number of cycles is not correct")
 	}
-	if dp["A"] != 5 {
+
+	if !isSliceSame(cycles[0], cyc) {
+		t.Errorf("Cycle is not correct")
+	}
+
+	if maxDepth != 5 {
 		t.Errorf("Max depth of dependencies was incorrect")
 	}
-	// fmt.Println("$$$$" + dp["A"] + "$$$$")
-	// fmt.Println("$$$$" + longestPath["H"] + "$$$$")
-	if longestPath["A"] != "B" || longestPath["B"] != "D" || longestPath["D"] != "F" || longestPath["F"] != "G" || longestPath["G"] != "H" {
+
+	longestPath := []string{"A", "B", "D", "F", "G", "H"}
+	if !isSliceSame(chains[maxDepth+1], longestPath) {
 		t.Errorf("Longest path was incorrect")
 	}
 }
 
-func Test_dfs_cycle_2(t *testing.T) {
+func Test_getChains_cycle_2(t *testing.T) {
 
 	/*
 		Graph:
@@ -107,23 +119,82 @@ func Test_dfs_cycle_2(t *testing.T) {
 	graph["A"] = []string{"B", "C"}
 	graph["B"] = []string{"C"}
 	graph["C"] = []string{"B", "E"}
+	graph["E"] = []string{"F"}
 	graph["F"] = []string{"D"}
 	graph["D"] = []string{"C"}
-	graph["E"] = []string{"F"}
 
-	dp := make(map[string]int)
-	visited := make(map[string]bool)
-	recVisited := make(map[string]bool)
-	longestPath := make(map[string]string)
-	for k := range graph {
-		if visited[k] == false {
-			dfs(k, graph, dp, visited, recVisited, longestPath)
-		}
-	}
-	if dp["A"] != 5 {
+	var cycleChains [][]string
+	chains := make(map[int][]string)
+	var temp []string
+	getChains("A", graph, temp, chains, &cycleChains)
+	maxDepth := getMaxDepth(chains)
+
+	cycles := getCycles(cycleChains)
+
+	if maxDepth != 5 {
 		t.Errorf("Max depth of dependencies was incorrect")
 	}
-	if longestPath["A"] != "B" || longestPath["B"] != "C" || longestPath["C"] != "E" || longestPath["E"] != "F" || longestPath["F"] != "D" {
+
+	if len(cycles) != 3 {
+		t.Errorf("Number of cycles is incorrect")
+	}
+	cyc1 := []string{"B", "C", "B"}
+	cyc2 := []string{"C", "E", "F", "D", "C"}
+	cyc3 := []string{"C", "B", "C"}
+
+	if !isSliceSame(cycles[0], cyc1) {
+		t.Errorf("B C B cycle is incorrect")
+	}
+
+	if !isSliceSame(cycles[1], cyc2) {
+		t.Errorf("C E F D C cycle is incorrect")
+	}
+
+	if !isSliceSame(cycles[2], cyc3) {
+		t.Errorf("C B C cycle is incorrect")
+	}
+
+	longestPath := []string{"A", "B", "C", "E", "F", "D"}
+	if !isSliceSame(chains[maxDepth+1], longestPath) {
 		t.Errorf("Longest path was incorrect")
+	}
+}
+
+// order matters
+func Test_isSliceSame_Pass(t *testing.T) {
+	a := []string{"A", "B", "C", "D"}
+	b := []string{"A", "B", "C", "D"}
+	if !isSliceSame(a, b) {
+		t.Errorf("Slices should have been same")
+	}
+}
+
+func Test_isSliceSame_Fail(t *testing.T) {
+	a := []string{"A", "B", "C", "D"}
+	b := []string{"A", "B", "D", "C"}
+	if isSliceSame(a, b) {
+		t.Errorf("Slices should have been different")
+	}
+}
+
+func Test_sliceContains_Pass(t *testing.T) {
+	var a [][]string
+	a = append(a, []string{"A", "B", "C"})
+	a = append(a, []string{"B", "C"})
+	a = append(a, []string{"C", "A", "B"})
+	b := []string{"B", "C"}
+	if !sliceContains(a, b) {
+		t.Errorf("Slice a should have b")
+	}
+}
+
+func Test_sliceContains_Fail(t *testing.T) {
+	var a [][]string
+	a = append(a, []string{"A", "B", "C"})
+	a = append(a, []string{"B", "C"})
+	a = append(a, []string{"C", "A", "B"})
+	b := []string{"E", "C"}
+	if sliceContains(a, b) {
+		t.Errorf("Slice a should not have b")
 	}
 }

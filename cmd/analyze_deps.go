@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -26,6 +27,10 @@ to quickly create a Cobra application.`,
 		if err != nil {
 			return err
 		}
+		cyclesMode, err := cmd.Flags().GetBool("cycles")
+		if err != nil {
+			return err
+		}
 
 		depGraph, deps, mainModule := getDepInfo()
 
@@ -35,9 +40,13 @@ to quickly create a Cobra application.`,
 		}
 
 		// Get all chains starting from main module
+		// also get all cycles
+		// cycleChains stores the chain containing the cycles and
+		// not the actual cycle itself
+		var cycleChains [][]string
 		chains := make(map[int][]string)
 		var temp []string
-		getChains(mainModule, depGraph, temp, chains)
+		getChains(mainModule, depGraph, temp, chains, &cycleChains)
 
 		// get values
 		totalDeps := len(deps)
@@ -51,6 +60,18 @@ to quickly create a Cobra application.`,
 			// maxDepth + 1 since maxDepth stores length of longest
 			// chain and chains has number of deps in chain as keys
 			printChain(chains[maxDepth+1])
+		}
+
+		// print all the cycles
+		if cyclesMode {
+			fmt.Println("All cycles in dependencies are: ")
+			cycles := getCycles(cycleChains)
+
+			for _, c := range cycles {
+				fmt.Println()
+				fmt.Println(strings.Join(c, " -> "))
+				fmt.Println()
+			}
 		}
 
 		// create json
@@ -78,7 +99,7 @@ to quickly create a Cobra application.`,
 func init() {
 	rootCmd.AddCommand(analyzeDepsCmd)
 	analyzeDepsCmd.Flags().BoolP("verbose", "v", false, "Get additional details")
-	// Here you will define your flags and configuration settings.
+	analyzeDepsCmd.Flags().BoolP("cycles", "c", false, "Get all the cycles")
 
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:

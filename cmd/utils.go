@@ -16,7 +16,7 @@ func max(x, y int) int {
 }
 
 // find all possible chains starting from currentDep
-func getChains(currentDep string, graph map[string][]string, longestPath []string, chains map[int][]string) {
+func getChains(currentDep string, graph map[string][]string, longestPath []string, chains map[int][]string, cycleChains *[][]string) {
 	longestPath = append(longestPath, currentDep)
 	_, ok := graph[currentDep]
 	if ok {
@@ -24,12 +24,37 @@ func getChains(currentDep string, graph map[string][]string, longestPath []strin
 			if !contains(longestPath, dep) {
 				cpy := make([]string, len(longestPath))
 				copy(cpy, longestPath)
-				getChains(dep, graph, cpy, chains)
+				getChains(dep, graph, cpy, chains, cycleChains)
+			} else {
+				chains[len(longestPath)] = longestPath
+				*cycleChains = append(*cycleChains, append(longestPath, dep))
 			}
 		}
 	} else {
 		chains[len(longestPath)] = longestPath
 	}
+}
+
+// gets the cycles from the cycleChains
+func getCycles(cycleChains [][]string) [][]string {
+	var cycles [][]string
+	for _, cycle := range cycleChains {
+		var actualCycle []string
+		start := false
+		startDep := cycle[len(cycle)-1]
+		for _, val := range cycle {
+			if val == startDep {
+				start = true
+			}
+			if start {
+				actualCycle = append(actualCycle, val)
+			}
+		}
+		if !sliceContains(cycles, actualCycle) {
+			cycles = append(cycles, actualCycle)
+		}
+	}
+	return cycles
 }
 
 // get the length of the longest dependency chain
@@ -112,6 +137,28 @@ func printDeps(deps []string) {
 func contains(s []string, str string) bool {
 	for _, v := range s {
 		if v == str {
+			return true
+		}
+	}
+	return false
+}
+
+// compares two slices of strings
+func isSliceSame(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for iterator := 0; iterator < len(a); iterator++ {
+		if a[iterator] != b[iterator] {
+			return false
+		}
+	}
+	return true
+}
+
+func sliceContains(val [][]string, key []string) bool {
+	for _, v := range val {
+		if isSliceSame(v, key) {
 			return true
 		}
 	}
