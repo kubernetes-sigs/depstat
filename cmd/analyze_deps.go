@@ -43,12 +43,10 @@ to quickly create a Cobra application.`,
 		// also get all cycles
 		// cycleChains stores the chain containing the cycles and
 		// not the actual cycle itself
-		//cycleChains := make(map[int][]string)
 		var cycleChains [][]string
 		chains := make(map[int][]string)
-		iter := 0
 		var temp []string
-		getChains(mainModule, depGraph, temp, chains, &cycleChains, &iter)
+		getChains(mainModule, depGraph, temp, chains, &cycleChains)
 
 		// get values
 		totalDeps := len(deps)
