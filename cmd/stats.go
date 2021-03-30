@@ -43,9 +43,9 @@ var statsCmd = &cobra.Command{
 		directDeps := len(depGraph[mainModule])
 		transitiveDeps := totalDeps - directDeps
 
-		fmt.Printf("Total Dependencies: %d", totalDeps)
-		fmt.Printf("Max Depth Of Dependencies: %d", maxDepth)
-		fmt.Printf("Transitive Dependencies: %d", transitiveDeps)
+		fmt.Printf("Total Dependencies: %d \n", totalDeps)
+		fmt.Printf("Max Depth Of Dependencies: %d \n", maxDepth)
+		fmt.Printf("Transitive Dependencies: %d \n", transitiveDeps)
 
 		if verbose {
 			fmt.Println("All dependencies:")
