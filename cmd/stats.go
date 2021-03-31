@@ -3,12 +3,12 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 
 	"github.com/spf13/cobra"
 )
 
-var fileLocation string
+var jsonOutput bool
+var verbose bool
 
 // statsCmd represents the statsDeps command
 var statsCmd = &cobra.Command{
@@ -20,12 +20,6 @@ var statsCmd = &cobra.Command{
 	3. Transitive Dependencies: Total number of transitive dependencies (dependencies which are not direct dependencies of the project).		
 	`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// get flags
-		verbose, err := cmd.Flags().GetBool("verbose")
-		if err != nil {
-			return err
-		}
-
 		depGraph, deps, mainModule := getDepInfo()
 
 		// Get all chains starting from main module
@@ -43,9 +37,11 @@ var statsCmd = &cobra.Command{
 		directDeps := len(depGraph[mainModule])
 		transitiveDeps := totalDeps - directDeps
 
-		fmt.Printf("Total Dependencies: %d \n", totalDeps)
-		fmt.Printf("Max Depth Of Dependencies: %d \n", maxDepth)
-		fmt.Printf("Transitive Dependencies: %d \n", transitiveDeps)
+		if !jsonOutput {
+			fmt.Printf("Total Dependencies: %d \n", totalDeps)
+			fmt.Printf("Max Depth Of Dependencies: %d \n", maxDepth)
+			fmt.Printf("Transitive Dependencies: %d \n", transitiveDeps)
+		}
 
 		if verbose {
 			fmt.Println("All dependencies:")
@@ -60,7 +56,7 @@ var statsCmd = &cobra.Command{
 			printChain(chains[maxDepth+1])
 		}
 
-		if cmd.Flags().Changed("file") {
+		if jsonOutput {
 			// create json
 			outputObj := struct {
 				TotalDeps int `json:"totalDependencies"`
@@ -75,10 +71,7 @@ var statsCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			err = ioutil.WriteFile(fileLocation+"analysis.json", outputRaw, 0644)
-			if err != nil {
-				return err
-			}
+			fmt.Println(string(outputRaw))
 		}
 		return nil
 	},
@@ -96,7 +89,7 @@ func getMaxDepth(chains map[int][]string) int {
 
 func init() {
 	rootCmd.AddCommand(statsCmd)
-	statsCmd.Flags().BoolP("verbose", "v", false, "Get additional details")
-	statsCmd.Flags().StringVarP(&fileLocation, "file", "f", "", "Direct the output to a file")
+	statsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Get additional details")
+	statsCmd.Flags().BoolVarP(&jsonOutput, "json", "f", false, "Get the output in JSON format")
 
 }
