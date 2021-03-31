@@ -99,11 +99,4 @@ func init() {
 	statsCmd.Flags().BoolP("verbose", "v", false, "Get additional details")
 	statsCmd.Flags().StringVarP(&fileLocation, "file", "f", "", "Direct the output to a file")
 
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// statsCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// statsCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
