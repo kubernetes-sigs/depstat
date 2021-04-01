@@ -35,47 +35,9 @@ func getChains(currentDep string, graph map[string][]string, longestPath []strin
 	}
 }
 
-// gets the cycles from the cycleChains
-func getCycles(cycleChains [][]string) [][]string {
-	var cycles [][]string
-	for _, cycle := range cycleChains {
-		var actualCycle []string
-		start := false
-		startDep := cycle[len(cycle)-1]
-		for _, val := range cycle {
-			if val == startDep {
-				start = true
-			}
-			if start {
-				actualCycle = append(actualCycle, val)
-			}
-		}
-		if !sliceContains(cycles, actualCycle) {
-			cycles = append(cycles, actualCycle)
-		}
-	}
-	return cycles
-}
-
-// get the length of the longest dependency chain
-func getMaxDepth(chains map[int][]string) int {
-	maxDeps := 0
-	for deps := range chains {
-		maxDeps = max(maxDeps, deps)
-	}
-	// for A -> B -> C the depth is 2
-	return maxDeps - 1
-}
-
-func printChain(deps []string) {
+func printChain(slice []string) {
 	fmt.Println()
-	for ind, dep := range deps {
-		if ind == len(deps)-1 {
-			fmt.Print(dep)
-		} else {
-			fmt.Print(dep + " -> ")
-		}
-	}
+	fmt.Println(strings.Join(slice, " -> "))
 	fmt.Println()
 }
 
@@ -124,14 +86,6 @@ func getDepInfo() (map[string][]string, []string, string) {
 
 	}
 	return depGraph, deps, mainModule
-}
-
-func printDeps(deps []string) {
-	fmt.Println()
-	for _, dep := range deps {
-		fmt.Println(dep)
-	}
-	fmt.Println()
 }
 
 func contains(s []string, str string) bool {
