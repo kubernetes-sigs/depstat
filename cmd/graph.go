@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// analyzeDepsCmd represents the analyzeDeps command
 var graphCmd = &cobra.Command{
 	Use:   "graph",
 	Short: "Generate a .dot file to be used with Graphviz's dot command.",
@@ -23,7 +22,7 @@ var graphCmd = &cobra.Command{
 				continue
 			}
 			for _, neighbour := range depGraph[dep] {
-				fileContents += ("\"" + dep + "\" -> \"" + neighbour + "\"\n")
+				fileContents += fmt.Sprintf("\"%s\" -> \"%s\"\n", dep, neighbour)
 			}
 		}
 		fileContents += "}"
