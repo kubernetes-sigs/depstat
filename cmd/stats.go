@@ -15,10 +15,9 @@ var statsCmd = &cobra.Command{
 	Use:   "stats",
 	Short: "Shows metrics about dependency chains",
 	Long: `Provides the following metrics:
-	1. Total Dependencies: Total number of dependencies of the project.
-	2. Max Depth of Dependencies: Length of the longest dependency chain.
-	3. Transitive Dependencies: Total number of transitive dependencies (dependencies which are not direct dependencies of the project).		
-	`,
+	1. Total Dependencies: Total number of dependencies of the project
+	2. Max Depth of Dependencies: Length of the longest dependency chain
+	3. Transitive Dependencies: Total number of transitive dependencies (dependencies which are not direct dependencies of the project)`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		depGraph, deps, mainModule := getDepInfo()
 
@@ -90,6 +89,6 @@ func getMaxDepth(chains map[int][]string) int {
 func init() {
 	rootCmd.AddCommand(statsCmd)
 	statsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Get additional details")
-	statsCmd.Flags().BoolVarP(&jsonOutput, "json", "f", false, "Get the output in JSON format")
+	statsCmd.Flags().BoolVarP(&jsonOutput, "json", "j", false, "Get the output in JSON format")
 
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"sort"
 	"strings"
 )
 
@@ -38,7 +39,6 @@ func getChains(currentDep string, graph map[string][]string, longestPath []strin
 func printChain(slice []string) {
 	fmt.Println()
 	fmt.Println(strings.Join(slice, " -> "))
-	fmt.Println()
 }
 
 func getDepInfo() (map[string][]string, []string, string) {
@@ -86,6 +86,15 @@ func getDepInfo() (map[string][]string, []string, string) {
 
 	}
 	return depGraph, deps, mainModule
+}
+
+func printDeps(deps []string) {
+	fmt.Println()
+	sort.Strings(deps)
+	for _, dep := range deps {
+		fmt.Println(dep)
+	}
+	fmt.Println()
 }
 
 func contains(s []string, str string) bool {
