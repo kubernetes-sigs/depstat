@@ -1,10 +1,13 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
 )
+
+var jsonOutputCycles bool
 
 // analyzeDepsCmd represents the analyzeDeps command
 var cyclesCmd = &cobra.Command{
@@ -17,11 +20,25 @@ var cyclesCmd = &cobra.Command{
 		chains := make(map[int][]string)
 		var temp []string
 		getChains(mainModule, depGraph, temp, chains, &cycleChains)
-		fmt.Println("All cycles in dependencies are: ")
 		cycles := getCycles(cycleChains)
 
-		for _, c := range cycles {
-			printChain(c)
+		if !jsonOutputCycles {
+			fmt.Println("All cycles in dependencies are: ")
+			for _, c := range cycles {
+				printChain(c)
+			}
+		} else {
+			// create json
+			outputObj := struct {
+				Cycles [][]string `json:"cycles"`
+			}{
+				Cycles: cycles,
+			}
+			outputRaw, err := json.Marshal(outputObj)
+			if err != nil {
+				return err
+			}
+			fmt.Println(string(outputRaw))
 		}
 		return nil
 	},
@@ -51,4 +68,5 @@ func getCycles(cycleChains [][]string) [][]string {
 
 func init() {
 	rootCmd.AddCommand(cyclesCmd)
+	cyclesCmd.Flags().BoolVarP(&jsonOutputCycles, "json", "j", false, "Get the output in JSON format")
 }
