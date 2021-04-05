@@ -38,13 +38,13 @@ func Test_getChains_simple(t *testing.T) {
 		t.Errorf("There should be no cycles")
 	}
 
-	if maxDepth != 4 {
+	if maxDepth != 5 {
 		t.Errorf("Max depth of dependencies was incorrect")
 	}
 
 	longestPath := []string{"A", "C", "E", "F", "H"}
 
-	if !isSliceSame(chains[maxDepth+1], longestPath) {
+	if !isSliceSame(chains[maxDepth], longestPath) {
 		t.Errorf("Longest path was incorrect")
 	}
 }
@@ -90,12 +90,12 @@ func Test_getChains_cycle(t *testing.T) {
 		t.Errorf("Cycle is not correct")
 	}
 
-	if maxDepth != 5 {
+	if maxDepth != 6 {
 		t.Errorf("Max depth of dependencies was incorrect")
 	}
 
 	longestPath := []string{"A", "B", "D", "F", "G", "H"}
-	if !isSliceSame(chains[maxDepth+1], longestPath) {
+	if !isSliceSame(chains[maxDepth], longestPath) {
 		t.Errorf("Longest path was incorrect")
 	}
 }
@@ -131,7 +131,7 @@ func Test_getChains_cycle_2(t *testing.T) {
 
 	cycles := getCycles(cycleChains)
 
-	if maxDepth != 5 {
+	if maxDepth != 6 {
 		t.Errorf("Max depth of dependencies was incorrect")
 	}
 
@@ -155,7 +155,7 @@ func Test_getChains_cycle_2(t *testing.T) {
 	}
 
 	longestPath := []string{"A", "B", "C", "E", "F", "D"}
-	if !isSliceSame(chains[maxDepth+1], longestPath) {
+	if !isSliceSame(chains[maxDepth], longestPath) {
 		t.Errorf("Longest path was incorrect")
 	}
 }
