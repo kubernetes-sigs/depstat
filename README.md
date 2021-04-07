@@ -1,13 +1,12 @@
-# Dependency Analyzer POC
+# depstat
 
-Proof of concept for a Dependency Analyzing CLI for Kubernetes.
+Dependency analyzer for GO modules enabled projects.
 
 ## Installation
 
 1. Clone the project and run `go install` in the project directory to install the CLI.
 2. Run `git clone https://github.com/kubernetes/kubernetes.git` and `cd` into the project directory.
-3. Run `depcost analyzeDeps`.
-4. You'll see the output in the `analysis.json` file.
+3. Run `depstat`.
 
 ## Design Doc
 
