@@ -90,5 +90,4 @@ func init() {
 	rootCmd.AddCommand(statsCmd)
 	statsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Get additional details")
 	statsCmd.Flags().BoolVarP(&jsonOutput, "json", "j", false, "Get the output in JSON format")
-
 }
