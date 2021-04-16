@@ -62,4 +62,15 @@ For example, after running `depstat graph`, an SVG can be created using:
 - The `--json` flag gives this output in a JSON format.
 - `--verbose` mode will help provide you with the list of all the dependencies and will also print the longest dependency chain.
 
+## Project Goals
+`depstat` is being developed under the code organization sub-project under [SIG Architecture](https://github.com/kubernetes/community/tree/master/sig-architecture). The goal is to make it easy to evaluate dependency updates to Kubernetes. This will be done by running `depstat` as part of the Kubernetes CI pipeline.
+
+## Community Contact Information
+You can reach the maintainers of this project at:
+
+[#k8s-code-organization](https://kubernetes.slack.com/messages/k8s-code-organization) on the [Kubernetes slack](http://slack.k8s.io).
+
+### Code of conduct
+
+Participation in the Kubernetes community is governed by the [Kubernetes Code of Conduct](code-of-conduct.md).
 
