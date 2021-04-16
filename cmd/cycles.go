@@ -33,7 +33,7 @@ var cyclesCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		depGraph, _, mainModule := getDepInfo()
 		var cycleChains [][]string
-		chains := make(map[int][]string)
+		chains := make(map[int][][]string)
 		var temp []string
 		getChains(mainModule, depGraph, temp, chains, &cycleChains)
 		cycles := getCycles(cycleChains)
@@ -50,7 +50,7 @@ var cyclesCmd = &cobra.Command{
 			}{
 				Cycles: cycles,
 			}
-			outputRaw, err := json.Marshal(outputObj)
+			outputRaw, err := json.MarshalIndent(outputObj, "", "\t")
 			if err != nil {
 				return err
 			}

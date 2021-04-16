@@ -42,7 +42,7 @@ var statsCmd = &cobra.Command{
 		// cycleChains stores the chain containing the cycles and
 		// not the actual cycle itself
 		var cycleChains [][]string
-		chains := make(map[int][]string)
+		chains := make(map[int][][]string)
 		var temp []string
 		getChains(mainModule, depGraph, temp, chains, &cycleChains)
 
@@ -65,8 +65,10 @@ var statsCmd = &cobra.Command{
 
 		// print the longest chain
 		if verbose {
-			fmt.Println("Longest chain is: ")
-			printChain(chains[maxDepth])
+			fmt.Println("Longest chain/s: ")
+			for _, chain := range chains[maxDepth] {
+				printChain(chain)
+			}
 		}
 
 		if jsonOutput {
@@ -80,7 +82,7 @@ var statsCmd = &cobra.Command{
 				MaxDepth:  maxDepth,
 				TransDeps: transitiveDeps,
 			}
-			outputRaw, err := json.Marshal(outputObj)
+			outputRaw, err := json.MarshalIndent(outputObj, "", "\t")
 			if err != nil {
 				return err
 			}
@@ -91,7 +93,7 @@ var statsCmd = &cobra.Command{
 }
 
 // get the length of the longest dependency chain
-func getMaxDepth(chains map[int][]string) int {
+func getMaxDepth(chains map[int][][]string) int {
 	maxDeps := 0
 	for deps := range chains {
 		maxDeps = max(maxDeps, deps)

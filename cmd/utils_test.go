@@ -44,7 +44,7 @@ func Test_getChains_simple(t *testing.T) {
 	graph["F"] = []string{"H"}
 
 	var cycleChains [][]string
-	chains := make(map[int][]string)
+	chains := make(map[int][][]string)
 	var temp []string
 	getChains("A", graph, temp, chains, &cycleChains)
 	maxDepth := getMaxDepth(chains)
@@ -58,10 +58,14 @@ func Test_getChains_simple(t *testing.T) {
 		t.Errorf("Max depth of dependencies was incorrect")
 	}
 
-	longestPath := []string{"A", "C", "E", "F", "H"}
+	longestPath1 := []string{"A", "B", "E", "F", "H"}
+	longestPath2 := []string{"A", "C", "E", "F", "H"}
 
-	if !isSliceSame(chains[maxDepth], longestPath) {
-		t.Errorf("Longest path was incorrect")
+	if !isSliceSame(chains[maxDepth][0], longestPath1) {
+		t.Errorf("First longest path was incorrect")
+	}
+	if !isSliceSame(chains[maxDepth][1], longestPath2) {
+		t.Errorf("Second longest path was incorrect")
 	}
 }
 
@@ -90,7 +94,7 @@ func Test_getChains_cycle(t *testing.T) {
 	graph["H"] = []string{"D"}
 
 	var cycleChains [][]string
-	chains := make(map[int][]string)
+	chains := make(map[int][][]string)
 	var temp []string
 	getChains("A", graph, temp, chains, &cycleChains)
 	maxDepth := getMaxDepth(chains)
@@ -111,7 +115,7 @@ func Test_getChains_cycle(t *testing.T) {
 	}
 
 	longestPath := []string{"A", "B", "D", "F", "G", "H"}
-	if !isSliceSame(chains[maxDepth], longestPath) {
+	if !isSliceSame(chains[maxDepth][0], longestPath) {
 		t.Errorf("Longest path was incorrect")
 	}
 }
@@ -140,7 +144,7 @@ func Test_getChains_cycle_2(t *testing.T) {
 	graph["D"] = []string{"C"}
 
 	var cycleChains [][]string
-	chains := make(map[int][]string)
+	chains := make(map[int][][]string)
 	var temp []string
 	getChains("A", graph, temp, chains, &cycleChains)
 	maxDepth := getMaxDepth(chains)
@@ -171,7 +175,7 @@ func Test_getChains_cycle_2(t *testing.T) {
 	}
 
 	longestPath := []string{"A", "B", "C", "E", "F", "D"}
-	if !isSliceSame(chains[maxDepth], longestPath) {
+	if !isSliceSame(chains[maxDepth][0], longestPath) {
 		t.Errorf("Longest path was incorrect")
 	}
 }
