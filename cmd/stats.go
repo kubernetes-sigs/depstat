@@ -32,7 +32,7 @@ type Chain []string
 var statsCmd = &cobra.Command{
 	Use:   "stats",
 	Short: "Shows metrics about dependency chains",
-	Long: `Provides the following betrics:
+	Long: `Provides the following metrics:
 	1. Total Dependencies: Total number of dependencies of the project
 	2. Max Depth of Dependencies: Number of dependencies in the longest dependency chain
 	3. Transitive Dependencies: Total number of transitive dependencies (dependencies which are not direct dependencies of the project)`,
