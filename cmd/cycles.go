@@ -32,10 +32,10 @@ var cyclesCmd = &cobra.Command{
 	Long:  `Will show all the cycles in the dependencies of the project.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		depGraph, _, mainModule := getDepInfo()
-		var cycleChains [][]string
-		chains := make(map[int][][]string)
-		var temp []string
-		getChains(mainModule, depGraph, temp, chains, &cycleChains)
+		var cycleChains []Chain
+		var chains []Chain
+		var temp Chain
+		getChains(mainModule, depGraph, temp, &chains, &cycleChains)
 		cycles := getCycles(cycleChains)
 
 		if !jsonOutputCycles {
@@ -46,7 +46,7 @@ var cyclesCmd = &cobra.Command{
 		} else {
 			// create json
 			outputObj := struct {
-				Cycles [][]string `json:"cycles"`
+				Cycles []Chain `json:"cycles"`
 			}{
 				Cycles: cycles,
 			}
@@ -61,22 +61,22 @@ var cyclesCmd = &cobra.Command{
 }
 
 // gets the cycles from the cycleChains
-func getCycles(cycleChains [][]string) [][]string {
-	var cycles [][]string
-	for _, cycle := range cycleChains {
-		var actualCycle []string
+func getCycles(cycleChains []Chain) []Chain {
+	var cycles []Chain
+	for _, chain := range cycleChains {
+		var cycle Chain
 		start := false
-		startDep := cycle[len(cycle)-1]
-		for _, val := range cycle {
+		startDep := chain[len(chain)-1]
+		for _, val := range chain {
 			if val == startDep {
 				start = true
 			}
 			if start {
-				actualCycle = append(actualCycle, val)
+				cycle = append(cycle, val)
 			}
 		}
-		if !sliceContains(cycles, actualCycle) {
-			cycles = append(cycles, actualCycle)
+		if !sliceContains(cycles, cycle) {
+			cycles = append(cycles, cycle)
 		}
 	}
 	return cycles

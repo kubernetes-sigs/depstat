@@ -43,10 +43,10 @@ func Test_getChains_simple(t *testing.T) {
 	graph["E"] = []string{"F"}
 	graph["F"] = []string{"H"}
 
-	var cycleChains [][]string
-	chains := make(map[int][][]string)
-	var temp []string
-	getChains("A", graph, temp, chains, &cycleChains)
+	var cycleChains []Chain
+	var chains []Chain
+	var temp Chain
+	getChains("A", graph, temp, &chains, &cycleChains)
 	maxDepth := getMaxDepth(chains)
 	cycles := getCycles(cycleChains)
 
@@ -58,13 +58,15 @@ func Test_getChains_simple(t *testing.T) {
 		t.Errorf("Max depth of dependencies was incorrect")
 	}
 
-	longestPath1 := []string{"A", "B", "E", "F", "H"}
-	longestPath2 := []string{"A", "C", "E", "F", "H"}
+	longestPath1 := Chain{"A", "B", "E", "F", "H"}
+	longestPath2 := Chain{"A", "C", "E", "F", "H"}
 
-	if !isSliceSame(chains[maxDepth][0], longestPath1) {
+	longestPaths := getLongestChains(maxDepth, chains)
+
+	if !isSliceSame(longestPaths[0], longestPath1) {
 		t.Errorf("First longest path was incorrect")
 	}
-	if !isSliceSame(chains[maxDepth][1], longestPath2) {
+	if !isSliceSame(longestPaths[1], longestPath2) {
 		t.Errorf("Second longest path was incorrect")
 	}
 }
@@ -93,10 +95,10 @@ func Test_getChains_cycle(t *testing.T) {
 	graph["G"] = []string{"H"}
 	graph["H"] = []string{"D"}
 
-	var cycleChains [][]string
-	chains := make(map[int][][]string)
-	var temp []string
-	getChains("A", graph, temp, chains, &cycleChains)
+	var cycleChains []Chain
+	var chains []Chain
+	var temp Chain
+	getChains("A", graph, temp, &chains, &cycleChains)
 	maxDepth := getMaxDepth(chains)
 	cycles := getCycles(cycleChains)
 
@@ -115,7 +117,8 @@ func Test_getChains_cycle(t *testing.T) {
 	}
 
 	longestPath := []string{"A", "B", "D", "F", "G", "H"}
-	if !isSliceSame(chains[maxDepth][0], longestPath) {
+	longestPaths := getLongestChains(maxDepth, chains)
+	if !isSliceSame(longestPaths[0], longestPath) {
 		t.Errorf("Longest path was incorrect")
 	}
 }
@@ -143,10 +146,10 @@ func Test_getChains_cycle_2(t *testing.T) {
 	graph["F"] = []string{"D"}
 	graph["D"] = []string{"C"}
 
-	var cycleChains [][]string
-	chains := make(map[int][][]string)
-	var temp []string
-	getChains("A", graph, temp, chains, &cycleChains)
+	var cycleChains []Chain
+	var chains []Chain
+	var temp Chain
+	getChains("A", graph, temp, &chains, &cycleChains)
 	maxDepth := getMaxDepth(chains)
 
 	cycles := getCycles(cycleChains)
@@ -175,7 +178,8 @@ func Test_getChains_cycle_2(t *testing.T) {
 	}
 
 	longestPath := []string{"A", "B", "C", "E", "F", "D"}
-	if !isSliceSame(chains[maxDepth][0], longestPath) {
+	longestPaths := getLongestChains(maxDepth, chains)
+	if !isSliceSame(longestPaths[0], longestPath) {
 		t.Errorf("Longest path was incorrect")
 	}
 }
@@ -198,22 +202,22 @@ func Test_isSliceSame_Fail(t *testing.T) {
 }
 
 func Test_sliceContains_Pass(t *testing.T) {
-	var a [][]string
-	a = append(a, []string{"A", "B", "C"})
-	a = append(a, []string{"B", "C"})
-	a = append(a, []string{"C", "A", "B"})
-	b := []string{"B", "C"}
+	var a []Chain
+	a = append(a, Chain{"A", "B", "C"})
+	a = append(a, Chain{"B", "C"})
+	a = append(a, Chain{"C", "A", "B"})
+	b := Chain{"B", "C"}
 	if !sliceContains(a, b) {
 		t.Errorf("Slice a should have b")
 	}
 }
 
 func Test_sliceContains_Fail(t *testing.T) {
-	var a [][]string
-	a = append(a, []string{"A", "B", "C"})
-	a = append(a, []string{"B", "C"})
-	a = append(a, []string{"C", "A", "B"})
-	b := []string{"E", "C"}
+	var a []Chain
+	a = append(a, Chain{"A", "B", "C"})
+	a = append(a, Chain{"B", "C"})
+	a = append(a, Chain{"C", "A", "B"})
+	b := Chain{"E", "C"}
 	if sliceContains(a, b) {
 		t.Errorf("Slice a should not have b")
 	}

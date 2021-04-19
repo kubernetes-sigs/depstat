@@ -33,22 +33,24 @@ func max(x, y int) int {
 }
 
 // find all possible chains starting from currentDep
-func getChains(currentDep string, graph map[string][]string, longestPath []string, chains map[int][][]string, cycleChains *[][]string) {
+func getChains(currentDep string, graph map[string][]string, longestPath Chain, chains *[]Chain, cycleChains *[]Chain) {
 	longestPath = append(longestPath, currentDep)
 	_, ok := graph[currentDep]
 	if ok {
 		for _, dep := range graph[currentDep] {
 			if !contains(longestPath, dep) {
-				cpy := make([]string, len(longestPath))
+				cpy := make(Chain, len(longestPath))
 				copy(cpy, longestPath)
 				getChains(dep, graph, cpy, chains, cycleChains)
 			} else {
-				chains[len(longestPath)] = append(chains[len(longestPath)], longestPath)
+				//chains[len(longestPath)] = append(chains[len(longestPath)], longestPath)
+				*chains = append(*chains, longestPath)
 				*cycleChains = append(*cycleChains, append(longestPath, dep))
 			}
 		}
 	} else {
-		chains[len(longestPath)] = append(chains[len(longestPath)], longestPath)
+		*chains = append(*chains, longestPath)
+		//chains[len(longestPath)] = append(chains[len(longestPath)], longestPath)
 	}
 }
 
@@ -135,7 +137,7 @@ func isSliceSame(a, b []string) bool {
 	return true
 }
 
-func sliceContains(val [][]string, key []string) bool {
+func sliceContains(val []Chain, key Chain) bool {
 	for _, v := range val {
 		if isSliceSame(v, key) {
 			return true
