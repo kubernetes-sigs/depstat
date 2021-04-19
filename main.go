@@ -16,7 +16,7 @@ limitations under the License.
 
 package main
 
-import "github.com/RinkiyaKeDad/depstat/cmd"
+import "github.com/kubernetes-sigs/depstat/cmd"
 
 func main() {
 	cmd.Execute()
