@@ -33,6 +33,6 @@ jobs:
         uses: actions/checkout@v2
       - name: Lint
         run: |
-          docker run --rm -v `pwd`:/go/src/k8s.io/klog -w /go/src/k8s.io/klog \
+          docker run --rm -v `pwd`:/go/src/kubernetes-sigs/depstat -w /go/src/kubernetes-sigs/depstat \
             golangci/golangci-lint:v1.23.8 golangci-lint run --disable-all -v \
             -E govet -E misspell -E gofmt -E ineffassign -E golint
