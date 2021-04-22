@@ -79,7 +79,6 @@ func getDepInfo() (map[string][]string, []string, string) {
 
 	for scanner.Scan() {
 		line := scanner.Text()
-		var b int
 		words := strings.Fields(line)
 		// remove versions
 		words[0] = (strings.Split(words[0], "@"))[0]
