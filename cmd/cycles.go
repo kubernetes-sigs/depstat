@@ -54,7 +54,7 @@ var cyclesCmd = &cobra.Command{
 			if err != nil {
 				return err
 			}
-			fmt.Println(string(outputRaw))
+			fmt.Print(string(outputRaw))
 		}
 		return nil
 	},
