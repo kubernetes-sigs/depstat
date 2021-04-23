@@ -43,14 +43,12 @@ func getChains(currentDep string, graph map[string][]string, longestPath Chain, 
 				copy(cpy, longestPath)
 				getChains(dep, graph, cpy, chains, cycleChains)
 			} else {
-				//chains[len(longestPath)] = append(chains[len(longestPath)], longestPath)
 				*chains = append(*chains, longestPath)
 				*cycleChains = append(*cycleChains, append(longestPath, dep))
 			}
 		}
 	} else {
 		*chains = append(*chains, longestPath)
-		//chains[len(longestPath)] = append(chains[len(longestPath)], longestPath)
 	}
 }
 
