@@ -33,9 +33,8 @@ var cyclesCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		depGraph, _, mainModule := getDepInfo()
 		var cycleChains []Chain
-		var chains []Chain
 		var temp Chain
-		getChains(mainModule, depGraph, temp, &chains, &cycleChains)
+		getCycleChains(mainModule, depGraph, temp, &cycleChains)
 		cycles := getCycles(cycleChains)
 
 		if !jsonOutputCycles {
@@ -58,6 +57,23 @@ var cyclesCmd = &cobra.Command{
 		}
 		return nil
 	},
+}
+
+// get all chains which have a cycle
+func getCycleChains(currentDep string, graph map[string][]string, currentChain Chain, cycleChains *[]Chain) {
+	currentChain = append(currentChain, currentDep)
+	_, ok := graph[currentDep]
+	if ok {
+		for _, dep := range graph[currentDep] {
+			if !contains(currentChain, dep) {
+				cpy := make(Chain, len(currentChain))
+				copy(cpy, currentChain)
+				getCycleChains(dep, graph, cpy, cycleChains)
+			} else {
+				*cycleChains = append(*cycleChains, append(currentChain, dep))
+			}
+		}
+	}
 }
 
 // gets the cycles from the cycleChains

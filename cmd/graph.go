@@ -39,10 +39,9 @@ var graphCmd = &cobra.Command{
 
 		// graph to be generated is based around input dep
 		if dep != "" {
-			var cycleChains []Chain
 			var chains []Chain
 			var temp Chain
-			getChains(mainModule, depGraph, temp, &chains, &cycleChains)
+			getAllChains(mainModule, depGraph, temp, &chains)
 			// to color the entered node as yellow
 			fileContents += fmt.Sprintf("MainNode [label=\"%s\", style=\"filled\" color=\"yellow\"]", dep)
 
@@ -96,6 +95,25 @@ var graphCmd = &cobra.Command{
 		fmt.Println("\nCreated graph.dot file!")
 		return nil
 	},
+}
+
+// find all possible chains starting from currentDep
+func getAllChains(currentDep string, graph map[string][]string, currentChain Chain, chains *[]Chain) {
+	currentChain = append(currentChain, currentDep)
+	_, ok := graph[currentDep]
+	if ok {
+		for _, dep := range graph[currentDep] {
+			if !contains(currentChain, dep) {
+				cpy := make(Chain, len(currentChain))
+				copy(cpy, currentChain)
+				getAllChains(dep, graph, cpy, chains)
+			} else {
+				*chains = append(*chains, currentChain)
+			}
+		}
+	} else {
+		*chains = append(*chains, currentChain)
+	}
 }
 
 func chainContains(chain Chain, dep string) bool {

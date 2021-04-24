@@ -17,6 +17,7 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -44,31 +45,29 @@ func Test_getChains_simple(t *testing.T) {
 	graph["F"] = []string{"H"}
 
 	var cycleChains []Chain
-	var chains []Chain
+	var longestChain Chain
 	var temp Chain
-	getChains("A", graph, temp, &chains, &cycleChains)
-	maxDepth := getMaxDepth(chains)
+	getLongestChain("A", graph, temp, &longestChain)
+	maxDepth := len(longestChain)
+	getCycleChains("A", graph, temp, &cycleChains)
 	cycles := getCycles(cycleChains)
 
 	if len(cycles) != 0 {
 		t.Errorf("There should be no cycles")
 	}
 
+	fmt.Println(longestChain)
+
 	if maxDepth != 5 {
 		t.Errorf("Max depth of dependencies was incorrect")
 	}
 
-	longestPath1 := Chain{"A", "B", "E", "F", "H"}
-	longestPath2 := Chain{"A", "C", "E", "F", "H"}
+	correctLongestChain := Chain{"A", "B", "E", "F", "H"}
 
-	longestPaths := getLongestChains(maxDepth, chains)
-
-	if !isSliceSame(longestPaths[0], longestPath1) {
+	if !isSliceSame(correctLongestChain, longestChain) {
 		t.Errorf("First longest path was incorrect")
 	}
-	if !isSliceSame(longestPaths[1], longestPath2) {
-		t.Errorf("Second longest path was incorrect")
-	}
+
 }
 
 func Test_getChains_cycle(t *testing.T) {
@@ -96,10 +95,11 @@ func Test_getChains_cycle(t *testing.T) {
 	graph["H"] = []string{"D"}
 
 	var cycleChains []Chain
-	var chains []Chain
+	var longestChain Chain
 	var temp Chain
-	getChains("A", graph, temp, &chains, &cycleChains)
-	maxDepth := getMaxDepth(chains)
+	getLongestChain("A", graph, temp, &longestChain)
+	maxDepth := len(longestChain)
+	getCycleChains("A", graph, temp, &cycleChains)
 	cycles := getCycles(cycleChains)
 
 	cyc := []string{"D", "F", "G", "H", "D"}
@@ -116,9 +116,8 @@ func Test_getChains_cycle(t *testing.T) {
 		t.Errorf("Max depth of dependencies was incorrect")
 	}
 
-	longestPath := []string{"A", "B", "D", "F", "G", "H"}
-	longestPaths := getLongestChains(maxDepth, chains)
-	if !isSliceSame(longestPaths[0], longestPath) {
+	correctLongestChain := []string{"A", "B", "D", "F", "G", "H"}
+	if !isSliceSame(longestChain, correctLongestChain) {
 		t.Errorf("Longest path was incorrect")
 	}
 }
@@ -147,11 +146,11 @@ func Test_getChains_cycle_2(t *testing.T) {
 	graph["D"] = []string{"C"}
 
 	var cycleChains []Chain
-	var chains []Chain
+	var longestChain Chain
 	var temp Chain
-	getChains("A", graph, temp, &chains, &cycleChains)
-	maxDepth := getMaxDepth(chains)
-
+	getLongestChain("A", graph, temp, &longestChain)
+	maxDepth := len(longestChain)
+	getCycleChains("A", graph, temp, &cycleChains)
 	cycles := getCycles(cycleChains)
 
 	if maxDepth != 6 {
@@ -177,9 +176,8 @@ func Test_getChains_cycle_2(t *testing.T) {
 		t.Errorf("C B C cycle is incorrect")
 	}
 
-	longestPath := []string{"A", "B", "C", "E", "F", "D"}
-	longestPaths := getLongestChains(maxDepth, chains)
-	if !isSliceSame(longestPaths[0], longestPath) {
+	correctLongestChain := []string{"A", "B", "C", "E", "F", "D"}
+	if !isSliceSame(longestChain, correctLongestChain) {
 		t.Errorf("Longest path was incorrect")
 	}
 }

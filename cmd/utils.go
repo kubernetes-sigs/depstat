@@ -25,33 +25,6 @@ import (
 	"strings"
 )
 
-func max(x, y int) int {
-	if x <= y {
-		return y
-	}
-	return x
-}
-
-// find all possible chains starting from currentDep
-func getChains(currentDep string, graph map[string][]string, longestPath Chain, chains *[]Chain, cycleChains *[]Chain) {
-	longestPath = append(longestPath, currentDep)
-	_, ok := graph[currentDep]
-	if ok {
-		for _, dep := range graph[currentDep] {
-			if !contains(longestPath, dep) {
-				cpy := make(Chain, len(longestPath))
-				copy(cpy, longestPath)
-				getChains(dep, graph, cpy, chains, cycleChains)
-			} else {
-				*chains = append(*chains, longestPath)
-				*cycleChains = append(*cycleChains, append(longestPath, dep))
-			}
-		}
-	} else {
-		*chains = append(*chains, longestPath)
-	}
-}
-
 func printChain(slice []string) {
 	fmt.Println()
 	fmt.Println(strings.Join(slice, " -> "))
