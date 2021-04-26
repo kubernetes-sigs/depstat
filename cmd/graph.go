@@ -19,6 +19,7 @@ package cmd
 import (
 	"fmt"
 	"io/ioutil"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -48,23 +49,17 @@ var graphCmd = &cobra.Command{
 			// add all chains which have the input dep to the .dot file
 			for _, chain := range chains {
 				if chainContains(chain, dep) {
-					for i, d := range chain {
-						if i == len(chain)-1 {
-							if d == dep {
-								// for the input dep use a colored node
-								fileContents += "MainNode\n"
-							} else {
-								fileContents += fmt.Sprintf("\"%s\"\n", d)
-							}
+
+					fileContents += "\n"
+					for i := range chain {
+						if chain[i] == dep {
+							chain[i] = "MainNode"
 						} else {
-							if d == dep {
-								// for the input dep use a colored node
-								fileContents += "MainNode -> "
-							} else {
-								fileContents += fmt.Sprintf("\"%s\" -> ", d)
-							}
+							chain[i] = "\"" + chain[i] + "\""
 						}
 					}
+					fileContents += strings.Join(chain, " -> ")
+
 				}
 			}
 		} else {
