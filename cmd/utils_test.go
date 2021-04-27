@@ -43,12 +43,52 @@ func Test_getChains_simple(t *testing.T) {
 	graph["E"] = []string{"F"}
 	graph["F"] = []string{"H"}
 
+	deps := []string{"A", "B", "C", "D", "E", "F", "H"}
+
 	var cycleChains []Chain
+	var longestChain Chain
 	var chains []Chain
 	var temp Chain
-	getChains("A", graph, temp, &chains, &cycleChains)
-	maxDepth := getMaxDepth(chains)
+	getLongestChain("A", graph, temp, &longestChain)
+	maxDepth := len(longestChain)
+	getCycleChains("A", graph, temp, &cycleChains)
+	getAllChains("A", graph, temp, &chains)
 	cycles := getCycles(cycleChains)
+
+	correctChains := [][]string{
+		{"A", "B", "E", "F", "H"},
+		{"A", "C", "E", "F", "H"},
+		{"A", "D", "G"},
+	}
+
+	correctFileContentsForAllDeps := `MainNode [label="A", style="filled" color="yellow"]
+"MainNode" -> "B"
+"MainNode" -> "C"
+"MainNode" -> "D"
+"B" -> "E"
+"C" -> "E"
+"D" -> "G"
+"E" -> "F"
+"F" -> "H"
+`
+
+	if correctFileContentsForAllDeps != getFileContentsForAllDeps(deps, graph, "A") {
+		t.Errorf("File contents for graph of all dependencies are wrong")
+	}
+
+	for i := range chains {
+		if !isSliceSame(chains[i], correctChains[i]) {
+			t.Errorf("Chains are not same")
+		}
+	}
+
+	correctFileContentsForSingleDep := `MainNode [label="E", style="filled" color="yellow"]
+"A" -> "B" -> MainNode -> "F" -> "H"
+"A" -> "C" -> MainNode -> "F" -> "H"
+`
+	if correctFileContentsForSingleDep != getFileContentsForSingleDep(chains, "E") {
+		t.Errorf("File contents for graph of a single dependency are wrong")
+	}
 
 	if len(cycles) != 0 {
 		t.Errorf("There should be no cycles")
@@ -58,17 +98,12 @@ func Test_getChains_simple(t *testing.T) {
 		t.Errorf("Max depth of dependencies was incorrect")
 	}
 
-	longestPath1 := Chain{"A", "B", "E", "F", "H"}
-	longestPath2 := Chain{"A", "C", "E", "F", "H"}
+	correctLongestChain := Chain{"A", "B", "E", "F", "H"}
 
-	longestPaths := getLongestChains(maxDepth, chains)
-
-	if !isSliceSame(longestPaths[0], longestPath1) {
+	if !isSliceSame(correctLongestChain, longestChain) {
 		t.Errorf("First longest path was incorrect")
 	}
-	if !isSliceSame(longestPaths[1], longestPath2) {
-		t.Errorf("Second longest path was incorrect")
-	}
+
 }
 
 func Test_getChains_cycle(t *testing.T) {
@@ -95,12 +130,48 @@ func Test_getChains_cycle(t *testing.T) {
 	graph["G"] = []string{"H"}
 	graph["H"] = []string{"D"}
 
+	deps := []string{"A", "B", "C", "D", "E", "F", "G", "H"}
+
 	var cycleChains []Chain
+	var longestChain Chain
 	var chains []Chain
 	var temp Chain
-	getChains("A", graph, temp, &chains, &cycleChains)
-	maxDepth := getMaxDepth(chains)
+	getLongestChain("A", graph, temp, &longestChain)
+	maxDepth := len(longestChain)
+	getCycleChains("A", graph, temp, &cycleChains)
+	getAllChains("A", graph, temp, &chains)
 	cycles := getCycles(cycleChains)
+
+	correctFileContentsForAllDeps := `MainNode [label="A", style="filled" color="yellow"]
+"MainNode" -> "B"
+"MainNode" -> "C"
+"B" -> "D"
+"C" -> "E"
+"D" -> "F"
+"F" -> "G"
+"G" -> "H"
+"H" -> "D"
+`
+	if correctFileContentsForAllDeps != getFileContentsForAllDeps(deps, graph, "A") {
+		t.Errorf("File contents for graph of all dependencies are wrong")
+	}
+
+	correctChains := [][]string{
+		{"A", "B", "D", "F", "G", "H"},
+		{"A", "C", "E"},
+	}
+	for i := range chains {
+		if !isSliceSame(chains[i], correctChains[i]) {
+			t.Errorf("Chains are not same")
+		}
+	}
+
+	correctFileContentsForSingleDep := `MainNode [label="H", style="filled" color="yellow"]
+"A" -> "B" -> "D" -> "F" -> "G" -> MainNode
+`
+	if correctFileContentsForSingleDep != getFileContentsForSingleDep(chains, "H") {
+		t.Errorf("File contents for graph of a single dependency are wrong")
+	}
 
 	cyc := []string{"D", "F", "G", "H", "D"}
 
@@ -116,9 +187,8 @@ func Test_getChains_cycle(t *testing.T) {
 		t.Errorf("Max depth of dependencies was incorrect")
 	}
 
-	longestPath := []string{"A", "B", "D", "F", "G", "H"}
-	longestPaths := getLongestChains(maxDepth, chains)
-	if !isSliceSame(longestPaths[0], longestPath) {
+	correctLongestChain := []string{"A", "B", "D", "F", "G", "H"}
+	if !isSliceSame(longestChain, correctLongestChain) {
 		t.Errorf("Longest path was incorrect")
 	}
 }
@@ -146,14 +216,52 @@ func Test_getChains_cycle_2(t *testing.T) {
 	graph["F"] = []string{"D"}
 	graph["D"] = []string{"C"}
 
+	deps := []string{"A", "B", "C", "D", "E", "F"}
+
 	var cycleChains []Chain
+	var longestChain Chain
 	var chains []Chain
 	var temp Chain
-	getChains("A", graph, temp, &chains, &cycleChains)
-	maxDepth := getMaxDepth(chains)
-
+	getLongestChain("A", graph, temp, &longestChain)
+	maxDepth := len(longestChain)
+	getCycleChains("A", graph, temp, &cycleChains)
+	getAllChains("A", graph, temp, &chains)
 	cycles := getCycles(cycleChains)
 
+	correctChains := [][]string{
+		{"A", "B", "C"},
+		{"A", "B", "C", "E", "F", "D"},
+		{"A", "C", "B"},
+		{"A", "C", "E", "F", "D"},
+	}
+
+	correctFileContentsForAllDeps := `MainNode [label="A", style="filled" color="yellow"]
+"MainNode" -> "B"
+"MainNode" -> "C"
+"B" -> "C"
+"C" -> "B"
+"C" -> "E"
+"D" -> "C"
+"E" -> "F"
+"F" -> "D"
+`
+	if correctFileContentsForAllDeps != getFileContentsForAllDeps(deps, graph, "A") {
+		t.Errorf("File contents for graph of all dependencies are wrong")
+	}
+
+	for i := range chains {
+		if !isSliceSame(chains[i], correctChains[i]) {
+			t.Errorf("Chains are not same")
+		}
+	}
+	correctFileContentsForSingleDep := `MainNode [label="B", style="filled" color="yellow"]
+"A" -> MainNode -> "C"
+"A" -> MainNode -> "C" -> "E" -> "F" -> "D"
+"A" -> "C" -> MainNode
+`
+	if correctFileContentsForSingleDep != getFileContentsForSingleDep(chains, "B") {
+		t.Errorf("File contents for graph of a single dependency are wrong")
+	}
 	if maxDepth != 6 {
 		t.Errorf("Max depth of dependencies was incorrect")
 	}
@@ -177,9 +285,8 @@ func Test_getChains_cycle_2(t *testing.T) {
 		t.Errorf("C B C cycle is incorrect")
 	}
 
-	longestPath := []string{"A", "B", "C", "E", "F", "D"}
-	longestPaths := getLongestChains(maxDepth, chains)
-	if !isSliceSame(longestPaths[0], longestPath) {
+	correctLongestChain := []string{"A", "B", "C", "E", "F", "D"}
+	if !isSliceSame(longestChain, correctLongestChain) {
 		t.Errorf("Longest path was incorrect")
 	}
 }

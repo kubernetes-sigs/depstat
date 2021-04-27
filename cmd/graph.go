@@ -19,9 +19,12 @@ package cmd
 import (
 	"fmt"
 	"io/ioutil"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
+
+var dep string
 
 var graphCmd = &cobra.Command{
 	Use:   "graph",
@@ -30,16 +33,19 @@ var graphCmd = &cobra.Command{
 	For example to generate a svg image use:
 	twopi -Tsvg -o dag.svg graph.dot`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		depGraph, deps, _ := getDepInfo()
-		fileContents := "digraph {\ngraph [rankdir=TB, overlap=false];\n"
-		for _, dep := range deps {
-			_, ok := depGraph[dep]
-			if !ok {
-				continue
-			}
-			for _, neighbour := range depGraph[dep] {
-				fileContents += fmt.Sprintf("\"%s\" -> \"%s\"\n", dep, neighbour)
-			}
+		depGraph, deps, mainModule := getDepInfo()
+		// strict ensures that there is only one edge between two vertices
+		// overlap = false ensures the vertices don't overlap
+		fileContents := "strict digraph {\ngraph [overlap=false];\n"
+
+		// graph to be generated is based around input dep
+		if dep != "" {
+			var chains []Chain
+			var temp Chain
+			getAllChains(mainModule, depGraph, temp, &chains)
+			fileContents += getFileContentsForSingleDep(chains, dep)
+		} else {
+			fileContents += getFileContentsForAllDeps(deps, depGraph, mainModule)
 		}
 		fileContents += "}"
 		fileContentsByte := []byte(fileContents)
@@ -52,6 +58,86 @@ var graphCmd = &cobra.Command{
 	},
 }
 
+// find all possible chains starting from currentDep
+func getAllChains(currentDep string, graph map[string][]string, currentChain Chain, chains *[]Chain) {
+	currentChain = append(currentChain, currentDep)
+	_, ok := graph[currentDep]
+	if ok {
+		for _, dep := range graph[currentDep] {
+			if !contains(currentChain, dep) {
+				cpy := make(Chain, len(currentChain))
+				copy(cpy, currentChain)
+				getAllChains(dep, graph, cpy, chains)
+			} else {
+				*chains = append(*chains, currentChain)
+			}
+		}
+	} else {
+		*chains = append(*chains, currentChain)
+	}
+}
+
+// get the contents of the .dot file for the graph
+// when the -d flag is set
+func getFileContentsForSingleDep(chains []Chain, dep string) string {
+	// to color the entered node as yellow
+	data := colorMainNode(dep)
+
+	// add all chains which have the input dep to the .dot file
+	for _, chain := range chains {
+		if chainContains(chain, dep) {
+			for i := range chain {
+				if chain[i] == dep {
+					chain[i] = "MainNode"
+				} else {
+					chain[i] = "\"" + chain[i] + "\""
+				}
+			}
+			data += strings.Join(chain, " -> ")
+			data += "\n"
+		}
+	}
+	return data
+}
+
+// get the contents of the .dot file for the graph
+// of all dependencies (when -d is not set)
+func getFileContentsForAllDeps(deps []string, depGraph map[string][]string, mainModule string) string {
+
+	// color the main module as yellow
+	data := colorMainNode(mainModule)
+	for _, dep := range deps {
+		_, ok := depGraph[dep]
+		if !ok {
+			continue
+		}
+		// main module can never be a neighbour
+		for _, neighbour := range depGraph[dep] {
+			if dep == mainModule {
+				// for the main module use a colored node
+				data += fmt.Sprintf("\"MainNode\" -> \"%s\"\n", neighbour)
+			} else {
+				data += fmt.Sprintf("\"%s\" -> \"%s\"\n", dep, neighbour)
+			}
+		}
+	}
+	return data
+}
+
+func chainContains(chain Chain, dep string) bool {
+	for _, d := range chain {
+		if d == dep {
+			return true
+		}
+	}
+	return false
+}
+
+func colorMainNode(mainNode string) string {
+	return fmt.Sprintf("MainNode [label=\"%s\", style=\"filled\" color=\"yellow\"]\n", mainNode)
+}
+
 func init() {
 	rootCmd.AddCommand(graphCmd)
+	graphCmd.Flags().StringVarP(&dep, "dep", "d", "", "Specify dependency to create a graph around")
 }

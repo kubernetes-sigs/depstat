@@ -39,18 +39,14 @@ var statsCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		depGraph, deps, mainModule := getDepInfo()
 
-		// Get all chains starting from main module
-		// also get all cycles
-		// cycleChains stores the chain containing the cycles and
-		// not the actual cycle itself
-		var cycleChains []Chain
-		var chains []Chain
+		// get the longest chain
+		var longestChain Chain
 		var temp Chain
-		getChains(mainModule, depGraph, temp, &chains, &cycleChains)
+		getLongestChain(mainModule, depGraph, temp, &longestChain)
 
 		// get values
 		totalDeps := len(deps)
-		maxDepth := getMaxDepth(chains)
+		maxDepth := len(longestChain)
 		directDeps := len(depGraph[mainModule])
 		transitiveDeps := totalDeps - directDeps
 
@@ -68,9 +64,7 @@ var statsCmd = &cobra.Command{
 		// print the longest chain
 		if verbose {
 			fmt.Println("Longest chain/s: ")
-			for _, chain := range getLongestChains(maxDepth, chains) {
-				printChain(chain)
-			}
+			printChain(longestChain)
 		}
 
 		if jsonOutput {
@@ -94,24 +88,27 @@ var statsCmd = &cobra.Command{
 	},
 }
 
-// get the length of the longest dependency chain
-func getMaxDepth(chains []Chain) int {
-	maxDeps := 0
-	for _, chain := range chains {
-		maxDeps = max(maxDeps, len(chain))
-	}
-	// for A -> B -> C the depth is 3
-	return maxDeps
-}
-
-func getLongestChains(maxDepth int, chains []Chain) []Chain {
-	var longestChains []Chain
-	for _, chain := range chains {
-		if len(chain) == maxDepth {
-			longestChains = append(longestChains, chain)
+// get the longest chain starting from currentDep
+func getLongestChain(currentDep string, graph map[string][]string, currentChain Chain, longestChain *Chain) {
+	currentChain = append(currentChain, currentDep)
+	_, ok := graph[currentDep]
+	if ok {
+		for _, dep := range graph[currentDep] {
+			if !contains(currentChain, dep) {
+				cpy := make(Chain, len(currentChain))
+				copy(cpy, currentChain)
+				getLongestChain(dep, graph, cpy, longestChain)
+			} else {
+				if len(currentChain) > len(*longestChain) {
+					*longestChain = currentChain
+				}
+			}
+		}
+	} else {
+		if len(currentChain) > len(*longestChain) {
+			*longestChain = currentChain
 		}
 	}
-	return longestChains
 }
 
 func init() {
