@@ -80,14 +80,12 @@ func getAllChains(currentDep string, graph map[string][]string, currentChain Cha
 // get the contents of the .dot file for the graph
 // when the -d flag is set
 func getFileContentsForSingleDep(chains []Chain, dep string) string {
-	data := ""
 	// to color the entered node as yellow
-	data += fmt.Sprintf("MainNode [label=\"%s\", style=\"filled\" color=\"yellow\"]", dep)
+	data := colorMainNode(dep)
 
 	// add all chains which have the input dep to the .dot file
 	for _, chain := range chains {
 		if chainContains(chain, dep) {
-			data += "\n"
 			for i := range chain {
 				if chain[i] == dep {
 					chain[i] = "MainNode"
@@ -96,6 +94,7 @@ func getFileContentsForSingleDep(chains []Chain, dep string) string {
 				}
 			}
 			data += strings.Join(chain, " -> ")
+			data += "\n"
 		}
 	}
 	return data
@@ -104,9 +103,9 @@ func getFileContentsForSingleDep(chains []Chain, dep string) string {
 // get the contents of the .dot file for the graph
 // of all dependencies (when -d is not set)
 func getFileContentsForAllDeps(deps []string, depGraph map[string][]string, mainModule string) string {
-	data := ""
+
 	// color the main module as yellow
-	data += fmt.Sprintf("MainNode [label=\"%s\", style=\"filled\" color=\"yellow\"]\n", mainModule)
+	data := colorMainNode(mainModule)
 	for _, dep := range deps {
 		_, ok := depGraph[dep]
 		if !ok {
@@ -132,6 +131,10 @@ func chainContains(chain Chain, dep string) bool {
 		}
 	}
 	return false
+}
+
+func colorMainNode(mainNode string) string {
+	return fmt.Sprintf("MainNode [label=\"%s\", style=\"filled\" color=\"yellow\"]\n", mainNode)
 }
 
 func init() {

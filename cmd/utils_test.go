@@ -84,7 +84,8 @@ func Test_getChains_simple(t *testing.T) {
 
 	correctFileContentsForSingleDep := `MainNode [label="E", style="filled" color="yellow"]
 "A" -> "B" -> MainNode -> "F" -> "H"
-"A" -> "C" -> MainNode -> "F" -> "H"`
+"A" -> "C" -> MainNode -> "F" -> "H"
+`
 	if correctFileContentsForSingleDep != getFileContentsForSingleDep(chains, "E") {
 		t.Errorf("File contents for graph of a single dependency are wrong")
 	}
@@ -166,7 +167,8 @@ func Test_getChains_cycle(t *testing.T) {
 	}
 
 	correctFileContentsForSingleDep := `MainNode [label="H", style="filled" color="yellow"]
-"A" -> "B" -> "D" -> "F" -> "G" -> MainNode`
+"A" -> "B" -> "D" -> "F" -> "G" -> MainNode
+`
 	if correctFileContentsForSingleDep != getFileContentsForSingleDep(chains, "H") {
 		t.Errorf("File contents for graph of a single dependency are wrong")
 	}
@@ -255,7 +257,8 @@ func Test_getChains_cycle_2(t *testing.T) {
 	correctFileContentsForSingleDep := `MainNode [label="B", style="filled" color="yellow"]
 "A" -> MainNode -> "C"
 "A" -> MainNode -> "C" -> "E" -> "F" -> "D"
-"A" -> "C" -> MainNode`
+"A" -> "C" -> MainNode
+`
 	if correctFileContentsForSingleDep != getFileContentsForSingleDep(chains, "B") {
 		t.Errorf("File contents for graph of a single dependency are wrong")
 	}
