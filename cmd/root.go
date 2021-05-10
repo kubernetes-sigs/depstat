@@ -23,12 +23,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var depstatVersion string
+
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:     "depstat",
 	Short:   "Analyze your Go project's dependencies",
 	Long:    `depstat will help you get details about the dependencies of your Go modules enabled project`,
-	Version: "0.5.3",
+	Version: depstatVersion,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	//	Run: func(cmd *cobra.Command, args []string) { },
