@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Create a bug report to help improve depstat
+about: Problems and issues with code or docs
 title: ''
 labels: 'kind/bug'
 assignees: ''
