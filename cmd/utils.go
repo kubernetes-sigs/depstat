@@ -69,13 +69,14 @@ func getDepInfo() *DependencyOverview {
 			depGraph[words[0]] = append(depGraph[words[0]], words[1])
 		}
 
+		isMainModule := false
 		if mainModule == "notset" {
 			mainModule = words[0]
-			// we don't want to add mainModule to deps list
-			continue
+			isMainModule = true
 		}
 
-		if !contains(deps, words[0]) {
+		if !contains(deps, words[0]) && !isMainModule {
+			// we don't want to add mainModule to deps list
 			deps = append(deps, words[0])
 		}
 		if !contains(deps, words[1]) {
