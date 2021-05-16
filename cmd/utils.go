@@ -30,8 +30,17 @@ func printChain(slice []string) {
 	fmt.Println(strings.Join(slice, " -> "))
 }
 
-func getDepInfo() (map[string][]string, []string, string) {
+// DependencyOverview holds dependency module informations
+type DependencyOverview struct {
+	// Dependency graph edges modelled as node plus adjacency nodes
+	Graph map[string][]string
+	// List of all (including transitive) dependencies
+	DepList []string
+	// Name of the module from which the dependencies are computed
+	MainModuleName string
+}
 
+func getDepInfo() *DependencyOverview {
 	// get output of "go mod graph" in a string
 	goModGraph := exec.Command("go", "mod", "graph")
 	goModGraphOutput, err := goModGraph.Output()
@@ -74,7 +83,11 @@ func getDepInfo() (map[string][]string, []string, string) {
 		}
 
 	}
-	return depGraph, deps, mainModule
+	return &DependencyOverview{
+		Graph:          depGraph,
+		DepList:        deps,
+		MainModuleName: mainModule,
+	}
 }
 
 func printDeps(deps []string) {
