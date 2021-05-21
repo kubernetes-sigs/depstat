@@ -33,7 +33,7 @@ var graphCmd = &cobra.Command{
 	For example to generate a svg image use:
 	twopi -Tsvg -o dag.svg graph.dot`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		depGraph, deps, mainModule := getDepInfo()
+		overview := getDepInfo()
 		// strict ensures that there is only one edge between two vertices
 		// overlap = false ensures the vertices don't overlap
 		fileContents := "strict digraph {\ngraph [overlap=false];\n"
@@ -42,10 +42,10 @@ var graphCmd = &cobra.Command{
 		if dep != "" {
 			var chains []Chain
 			var temp Chain
-			getAllChains(mainModule, depGraph, temp, &chains)
+			getAllChains(overview.MainModuleName, overview.Graph, temp, &chains)
 			fileContents += getFileContentsForSingleDep(chains, dep)
 		} else {
-			fileContents += getFileContentsForAllDeps(deps, depGraph, mainModule)
+			fileContents += getFileContentsForAllDeps(overview)
 		}
 		fileContents += "}"
 		fileContentsByte := []byte(fileContents)
@@ -102,18 +102,18 @@ func getFileContentsForSingleDep(chains []Chain, dep string) string {
 
 // get the contents of the .dot file for the graph
 // of all dependencies (when -d is not set)
-func getFileContentsForAllDeps(deps []string, depGraph map[string][]string, mainModule string) string {
+func getFileContentsForAllDeps(overview *DependencyOverview) string {
 
 	// color the main module as yellow
-	data := colorMainNode(mainModule)
-	for _, dep := range deps {
-		_, ok := depGraph[dep]
+	data := colorMainNode(overview.MainModuleName)
+	for _, dep := range overview.DepList {
+		_, ok := overview.Graph[dep]
 		if !ok {
 			continue
 		}
 		// main module can never be a neighbour
-		for _, neighbour := range depGraph[dep] {
-			if dep == mainModule {
+		for _, neighbour := range overview.Graph[dep] {
+			if dep == overview.MainModuleName {
 				// for the main module use a colored node
 				data += fmt.Sprintf("\"MainNode\" -> \"%s\"\n", neighbour)
 			} else {

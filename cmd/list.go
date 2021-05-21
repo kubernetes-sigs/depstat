@@ -29,9 +29,9 @@ var listCmd = &cobra.Command{
 	Long: `Gives a list of all the dependencies of the project. 
 	These include both direct as well as transitive dependencies.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		_, deps, _ := getDepInfo()
+		depGraph := getDepInfo()
 		fmt.Println("List of all dependencies:")
-		printDeps(deps)
+		printDeps(depGraph.DepList)
 		return nil
 	},
 }

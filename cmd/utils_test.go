@@ -44,6 +44,11 @@ func Test_getChains_simple(t *testing.T) {
 	graph["F"] = []string{"H"}
 
 	deps := []string{"A", "B", "C", "D", "E", "F", "H"}
+	overview := &DependencyOverview{
+		Graph:          graph,
+		DepList:           deps,
+		MainModuleName: "A",
+	}
 
 	var cycleChains []Chain
 	var longestChain Chain
@@ -72,7 +77,7 @@ func Test_getChains_simple(t *testing.T) {
 "F" -> "H"
 `
 
-	if correctFileContentsForAllDeps != getFileContentsForAllDeps(deps, graph, "A") {
+	if correctFileContentsForAllDeps != getFileContentsForAllDeps(overview) {
 		t.Errorf("File contents for graph of all dependencies are wrong")
 	}
 
@@ -131,6 +136,11 @@ func Test_getChains_cycle(t *testing.T) {
 	graph["H"] = []string{"D"}
 
 	deps := []string{"A", "B", "C", "D", "E", "F", "G", "H"}
+	overview := &DependencyOverview{
+		Graph:          graph,
+		DepList:           deps,
+		MainModuleName: "A",
+	}
 
 	var cycleChains []Chain
 	var longestChain Chain
@@ -152,7 +162,7 @@ func Test_getChains_cycle(t *testing.T) {
 "G" -> "H"
 "H" -> "D"
 `
-	if correctFileContentsForAllDeps != getFileContentsForAllDeps(deps, graph, "A") {
+	if correctFileContentsForAllDeps != getFileContentsForAllDeps(overview) {
 		t.Errorf("File contents for graph of all dependencies are wrong")
 	}
 
@@ -218,6 +228,12 @@ func Test_getChains_cycle_2(t *testing.T) {
 
 	deps := []string{"A", "B", "C", "D", "E", "F"}
 
+	overview := &DependencyOverview{
+		Graph:          graph,
+		DepList:           deps,
+		MainModuleName: "A",
+	}
+
 	var cycleChains []Chain
 	var longestChain Chain
 	var chains []Chain
@@ -245,7 +261,7 @@ func Test_getChains_cycle_2(t *testing.T) {
 "E" -> "F"
 "F" -> "D"
 `
-	if correctFileContentsForAllDeps != getFileContentsForAllDeps(deps, graph, "A") {
+	if correctFileContentsForAllDeps != getFileContentsForAllDeps(overview) {
 		t.Errorf("File contents for graph of all dependencies are wrong")
 	}
 
