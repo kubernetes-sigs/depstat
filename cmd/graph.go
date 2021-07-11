@@ -19,6 +19,7 @@ package cmd
 import (
 	"fmt"
 	"io/ioutil"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -106,7 +107,10 @@ func getFileContentsForAllDeps(overview *DependencyOverview) string {
 
 	// color the main module as yellow
 	data := colorMainNode(overview.MainModuleName)
-	for _, dep := range overview.DepList {
+	allDeps := getAllDeps(overview.Graph[overview.MainModuleName], overview.TransDepList)
+	allDeps = append(allDeps, overview.MainModuleName)
+	sort.Strings(allDeps)
+	for _, dep := range allDeps {
 		_, ok := overview.Graph[dep]
 		if !ok {
 			continue

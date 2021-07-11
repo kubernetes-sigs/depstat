@@ -45,20 +45,19 @@ var statsCmd = &cobra.Command{
 		getLongestChain(depGraph.MainModuleName, depGraph.Graph, temp, &longestChain)
 
 		// get values
-		totalDeps := len(depGraph.DepList)
 		maxDepth := len(longestChain)
 		directDeps := len(depGraph.Graph[depGraph.MainModuleName])
-		transitiveDeps := totalDeps - directDeps
+		transitiveDeps := len(depGraph.TransDepList)
 
 		if !jsonOutput {
-			fmt.Printf("Total Dependencies: %d \n", totalDeps)
-			fmt.Printf("Max Depth Of Dependencies: %d \n", maxDepth)
+			fmt.Printf("Direct Dependencies: %d \n", directDeps)
 			fmt.Printf("Transitive Dependencies: %d \n", transitiveDeps)
+			fmt.Printf("Max Depth Of Dependencies: %d \n", maxDepth)
 		}
 
 		if verbose {
 			fmt.Println("All dependencies:")
-			printDeps(depGraph.DepList)
+			printDeps(append(depGraph.Graph[depGraph.MainModuleName], depGraph.TransDepList...))
 		}
 
 		// print the longest chain
@@ -70,13 +69,13 @@ var statsCmd = &cobra.Command{
 		if jsonOutput {
 			// create json
 			outputObj := struct {
-				TotalDeps int `json:"totalDependencies"`
-				MaxDepth  int `json:"maxDepthOfDependencies"`
-				TransDeps int `json:"transitiveDependencies"`
+				DirectDeps int `json:"directDependencies"`
+				TransDeps  int `json:"transitiveDependencies"`
+				MaxDepth   int `json:"maxDepthOfDependencies"`
 			}{
-				TotalDeps: totalDeps,
-				MaxDepth:  maxDepth,
-				TransDeps: transitiveDeps,
+				DirectDeps: directDeps,
+				TransDeps:  transitiveDeps,
+				MaxDepth:   maxDepth,
 			}
 			outputRaw, err := json.MarshalIndent(outputObj, "", "\t")
 			if err != nil {

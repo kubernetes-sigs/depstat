@@ -17,6 +17,7 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -43,10 +44,10 @@ func Test_getChains_simple(t *testing.T) {
 	graph["E"] = []string{"F"}
 	graph["F"] = []string{"H"}
 
-	deps := []string{"A", "B", "C", "D", "E", "F", "H"}
+	transDeps := []string{"E", "G", "F", "H"}
 	overview := &DependencyOverview{
 		Graph:          graph,
-		DepList:           deps,
+		TransDepList:   transDeps,
 		MainModuleName: "A",
 	}
 
@@ -76,7 +77,7 @@ func Test_getChains_simple(t *testing.T) {
 "E" -> "F"
 "F" -> "H"
 `
-
+	fmt.Println(getFileContentsForAllDeps(overview))
 	if correctFileContentsForAllDeps != getFileContentsForAllDeps(overview) {
 		t.Errorf("File contents for graph of all dependencies are wrong")
 	}
@@ -135,10 +136,10 @@ func Test_getChains_cycle(t *testing.T) {
 	graph["G"] = []string{"H"}
 	graph["H"] = []string{"D"}
 
-	deps := []string{"A", "B", "C", "D", "E", "F", "G", "H"}
+	transDeps := []string{"D", "E", "F", "G", "H"}
 	overview := &DependencyOverview{
 		Graph:          graph,
-		DepList:           deps,
+		TransDepList:   transDeps,
 		MainModuleName: "A",
 	}
 
@@ -226,11 +227,11 @@ func Test_getChains_cycle_2(t *testing.T) {
 	graph["F"] = []string{"D"}
 	graph["D"] = []string{"C"}
 
-	deps := []string{"A", "B", "C", "D", "E", "F"}
+	transDeps := []string{"C", "B", "E", "F", "D"}
 
 	overview := &DependencyOverview{
 		Graph:          graph,
-		DepList:           deps,
+		TransDepList:   transDeps,
 		MainModuleName: "A",
 	}
 
