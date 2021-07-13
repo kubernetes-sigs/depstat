@@ -34,8 +34,8 @@ func printChain(slice []string) {
 type DependencyOverview struct {
 	// Dependency graph edges modelled as node plus adjacency nodes
 	Graph map[string][]string
-	// List of all (including transitive) dependencies
-	DepList []string
+	// List of all transitive dependencies
+	TransDepList []string
 	// Name of the module from which the dependencies are computed
 	MainModuleName string
 }
@@ -53,8 +53,8 @@ func getDepInfo() *DependencyOverview {
 	depGraph := make(map[string][]string)
 	scanner := bufio.NewScanner(strings.NewReader(goModGraphOutputString))
 
-	// deps will store all the dependencies
-	var deps []string
+	// transDeps will store all the transitive dependencies
+	var transDeps []string
 	mainModule := "notset"
 
 	for scanner.Scan() {
@@ -69,24 +69,21 @@ func getDepInfo() *DependencyOverview {
 			depGraph[words[0]] = append(depGraph[words[0]], words[1])
 		}
 
-		isMainModule := false
 		if mainModule == "notset" {
 			mainModule = words[0]
-			isMainModule = true
 		}
 
-		if !contains(deps, words[0]) && !isMainModule {
-			// we don't want to add mainModule to deps list
-			deps = append(deps, words[0])
+		// anything where the LHS is not mainModule
+		// is a transitive dependency
+		if words[0] != mainModule {
+			if !contains(transDeps, words[1]) {
+				transDeps = append(transDeps, words[1])
+			}
 		}
-		if !contains(deps, words[1]) {
-			deps = append(deps, words[1])
-		}
-
 	}
 	return &DependencyOverview{
 		Graph:          depGraph,
-		DepList:        deps,
+		TransDepList:   transDeps,
 		MainModuleName: mainModule,
 	}
 }
@@ -98,6 +95,21 @@ func printDeps(deps []string) {
 		fmt.Println(dep)
 	}
 	fmt.Println()
+}
+
+func getAllDeps(directDeps []string, transDeps []string) []string {
+	var allDeps []string
+	for _, dep := range directDeps {
+		if !contains(allDeps, dep) {
+			allDeps = append(allDeps, dep)
+		}
+	}
+	for _, dep := range transDeps {
+		if !contains(allDeps, dep) {
+			allDeps = append(allDeps, dep)
+		}
+	}
+	return allDeps
 }
 
 func contains(s []string, str string) bool {

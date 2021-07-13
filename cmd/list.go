@@ -31,7 +31,8 @@ var listCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		depGraph := getDepInfo()
 		fmt.Println("List of all dependencies:")
-		printDeps(depGraph.DepList)
+		allDeps := getAllDeps(depGraph.Graph[depGraph.MainModuleName], depGraph.TransDepList)
+		printDeps(allDeps)
 		return nil
 	},
 }
