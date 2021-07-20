@@ -25,6 +25,7 @@ import (
 
 var jsonOutput bool
 var verbose bool
+var mainModules []string
 
 type Chain []string
 
@@ -33,11 +34,12 @@ var statsCmd = &cobra.Command{
 	Use:   "stats",
 	Short: "Shows metrics about dependency chains",
 	Long: `Provides the following metrics:
-	1. Total Dependencies: Total number of dependencies of the project
-	2. Max Depth of Dependencies: Number of dependencies in the longest dependency chain
-	3. Transitive Dependencies: Total number of transitive dependencies (dependencies which are not direct dependencies of the project)`,
+	1. Direct Dependencies: Total number of dependencies required by the mainModule(s) directly
+	2. Transitive Dependencies: Total number of transitive dependencies (dependencies which are further needed by direct dependencies of the project)
+	3. Total Dependencies: Total number of dependencies of the project
+	4. Max Depth of Dependencies: Number of dependencies in the longest dependency chain`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		depGraph := getDepInfo()
+		depGraph := getDepInfo(mainModules)
 
 		// get the longest chain
 		var longestChain Chain
@@ -46,8 +48,26 @@ var statsCmd = &cobra.Command{
 
 		// get values
 		maxDepth := len(longestChain)
-		directDeps := len(depGraph.Graph[depGraph.MainModuleName])
-		totalDeps := len(getAllDeps(depGraph.Graph[depGraph.MainModuleName], depGraph.TransDepList))
+		directDeps := 0
+		if len(mainModules) == 0 {
+			directDeps = len(depGraph.Graph[depGraph.MainModuleName])
+		} else {
+			var dirDeps []string
+			for _, mainModule := range mainModules {
+				dirDeps = getAllDeps(dirDeps, depGraph.Graph[mainModule])
+			}
+			directDeps = len(dirDeps)
+		}
+		totalDeps := 0
+		if len(mainModules) == 0 {
+			totalDeps = len(getAllDeps(depGraph.Graph[depGraph.MainModuleName], depGraph.TransDepList))
+		} else {
+			allDeps := depGraph.TransDepList
+			for _, mainModule := range mainModules {
+				allDeps = getAllDeps(allDeps, depGraph.Graph[mainModule])
+			}
+			totalDeps = len(allDeps)
+		}
 		transitiveDeps := len(depGraph.TransDepList)
 
 		if !jsonOutput {
@@ -118,4 +138,5 @@ func init() {
 	rootCmd.AddCommand(statsCmd)
 	statsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Get additional details")
 	statsCmd.Flags().BoolVarP(&jsonOutput, "json", "j", false, "Get the output in JSON format")
+	statsCmd.Flags().StringSliceVarP(&mainModules, "mainModules", "m", []string{}, "Enter packages you want to be considered as main modules")
 }

@@ -40,7 +40,7 @@ type DependencyOverview struct {
 	MainModuleName string
 }
 
-func getDepInfo() *DependencyOverview {
+func getDepInfo(mainModules []string) *DependencyOverview {
 	// get output of "go mod graph" in a string
 	goModGraph := exec.Command("go", "mod", "graph")
 	goModGraphOutput, err := goModGraph.Output()
@@ -75,11 +75,22 @@ func getDepInfo() *DependencyOverview {
 
 		// anything where the LHS is not mainModule
 		// is a transitive dependency
-		if words[0] != mainModule {
-			if !contains(transDeps, words[1]) {
-				transDeps = append(transDeps, words[1])
+
+		if len(mainModules) == 0 {
+			if words[0] != mainModule {
+				if !contains(transDeps, words[1]) {
+					transDeps = append(transDeps, words[1])
+				}
+			}
+		} else {
+			// if the user has specified a list of modules to be used
+			if !contains(mainModules, words[0]) {
+				if !contains(mainModules, words[1]) && !contains(transDeps, words[1]) {
+					transDeps = append(transDeps, words[1])
+				}
 			}
 		}
+
 	}
 	return &DependencyOverview{
 		Graph:          depGraph,

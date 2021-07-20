@@ -34,7 +34,7 @@ var graphCmd = &cobra.Command{
 	For example to generate a svg image use:
 	twopi -Tsvg -o dag.svg graph.dot`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		overview := getDepInfo()
+		overview := getDepInfo([]string{})
 		// strict ensures that there is only one edge between two vertices
 		// overlap = false ensures the vertices don't overlap
 		fileContents := "strict digraph {\ngraph [overlap=false];\n"
