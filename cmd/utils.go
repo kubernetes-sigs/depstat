@@ -35,12 +35,14 @@ type DependencyOverview struct {
 	// Dependency graph edges modelled as node plus adjacency nodes
 	Graph map[string][]string
 	// List of all transitive dependencies
+	DirectDepList []string
+	// List of all transitive dependencies
 	TransDepList []string
 	// Name of the module from which the dependencies are computed
-	MainModuleName string
+	MainModules []string
 }
 
-func getDepInfo(mainModules []string) *DependencyOverview {
+func getDepInfo(depGraph *DependencyOverview) {
 	// get output of "go mod graph" in a string
 	goModGraph := exec.Command("go", "mod", "graph")
 	goModGraphOutput, err := goModGraph.Output()
@@ -50,12 +52,8 @@ func getDepInfo(mainModules []string) *DependencyOverview {
 	goModGraphOutputString := string(goModGraphOutput)
 
 	// create a graph of dependencies from that output
-	depGraph := make(map[string][]string)
+	graph := make(map[string][]string)
 	scanner := bufio.NewScanner(strings.NewReader(goModGraphOutputString))
-
-	// transDeps will store all the transitive dependencies
-	var transDeps []string
-	mainModule := "notset"
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -65,37 +63,27 @@ func getDepInfo(mainModules []string) *DependencyOverview {
 		words[1] = (strings.Split(words[1], "@"))[0]
 
 		// we don't want to add the same dep again
-		if !contains(depGraph[words[0]], words[1]) {
-			depGraph[words[0]] = append(depGraph[words[0]], words[1])
+		if !contains(graph[words[0]], words[1]) {
+			graph[words[0]] = append(graph[words[0]], words[1])
 		}
 
-		if mainModule == "notset" {
-			mainModule = words[0]
+		if len(depGraph.MainModules) == 0 {
+			depGraph.MainModules = append(depGraph.MainModules, words[0])
 		}
 
-		// anything where the LHS is not mainModule
-		// is a transitive dependency
-
-		if len(mainModules) == 0 {
-			if words[0] != mainModule {
-				if !contains(transDeps, words[1]) {
-					transDeps = append(transDeps, words[1])
-				}
+		// if the LHS is a mainModule
+		// then RHS is a direct dep else transitive dep
+		if contains(depGraph.MainModules, words[0]) && contains(depGraph.MainModules, words[1]) {
+			continue
+		} else if contains(depGraph.MainModules, words[0]) {
+			if !contains(depGraph.DirectDepList, words[1]) {
+				depGraph.DirectDepList = append(depGraph.DirectDepList, words[1])
 			}
-		} else {
-			// if the user has specified a list of modules to be used
-			if !contains(mainModules, words[0]) {
-				if !contains(mainModules, words[1]) && !contains(transDeps, words[1]) {
-					transDeps = append(transDeps, words[1])
-				}
+		} else if !contains(depGraph.MainModules, words[0]) {
+			if !contains(depGraph.TransDepList, words[1]) {
+				depGraph.TransDepList = append(depGraph.TransDepList, words[1])
 			}
 		}
-
-	}
-	return &DependencyOverview{
-		Graph:          depGraph,
-		TransDepList:   transDeps,
-		MainModuleName: mainModule,
 	}
 }
 
@@ -108,6 +96,7 @@ func printDeps(deps []string) {
 	fmt.Println()
 }
 
+// we need this since a dependency can be both a direct and an indirect dependency
 func getAllDeps(directDeps []string, transDeps []string) []string {
 	var allDeps []string
 	for _, dep := range directDeps {

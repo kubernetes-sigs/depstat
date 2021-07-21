@@ -39,36 +39,19 @@ var statsCmd = &cobra.Command{
 	3. Total Dependencies: Total number of dependencies of the project
 	4. Max Depth of Dependencies: Number of dependencies in the longest dependency chain`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		depGraph := getDepInfo(mainModules)
+		depGraph := DependencyOverview{MainModules: mainModules}
+		getDepInfo(&depGraph)
 
 		// get the longest chain
 		var longestChain Chain
 		var temp Chain
-		getLongestChain(depGraph.MainModuleName, depGraph.Graph, temp, &longestChain)
+		getLongestChain(depGraph.MainModules[0], depGraph.Graph, temp, &longestChain)
 
 		// get values
 		maxDepth := len(longestChain)
-		directDeps := 0
-		if len(mainModules) == 0 {
-			directDeps = len(depGraph.Graph[depGraph.MainModuleName])
-		} else {
-			var dirDeps []string
-			for _, mainModule := range mainModules {
-				dirDeps = getAllDeps(dirDeps, depGraph.Graph[mainModule])
-			}
-			directDeps = len(dirDeps)
-		}
-		totalDeps := 0
-		if len(mainModules) == 0 {
-			totalDeps = len(getAllDeps(depGraph.Graph[depGraph.MainModuleName], depGraph.TransDepList))
-		} else {
-			allDeps := depGraph.TransDepList
-			for _, mainModule := range mainModules {
-				allDeps = getAllDeps(allDeps, depGraph.Graph[mainModule])
-			}
-			totalDeps = len(allDeps)
-		}
+		directDeps := len(depGraph.DirectDepList)
 		transitiveDeps := len(depGraph.TransDepList)
+		totalDeps := len(getAllDeps(depGraph.DirectDepList, depGraph.TransDepList))
 
 		if !jsonOutput {
 			fmt.Printf("Direct Dependencies: %d \n", directDeps)
@@ -79,7 +62,7 @@ var statsCmd = &cobra.Command{
 
 		if verbose {
 			fmt.Println("All dependencies:")
-			printDeps(append(depGraph.Graph[depGraph.MainModuleName], depGraph.TransDepList...))
+			printDeps(getAllDeps(depGraph.DirectDepList, depGraph.TransDepList))
 		}
 
 		// print the longest chain
