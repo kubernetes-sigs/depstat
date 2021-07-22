@@ -120,5 +120,5 @@ func init() {
 	rootCmd.AddCommand(statsCmd)
 	statsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Get additional details")
 	statsCmd.Flags().BoolVarP(&jsonOutput, "json", "j", false, "Get the output in JSON format")
-	statsCmd.Flags().StringSliceVarP(&mainModules, "mainModules", "m", []string{}, "Enter packages you want to be considered as main modules")
+	statsCmd.Flags().StringSliceVarP(&mainModules, "mainModules", "m", []string{}, "Enter modules whose dependencies should be considered direct dependencies; defaults to the first module encountered in `go mod graph` output")
 }
