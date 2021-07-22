@@ -42,7 +42,8 @@ type DependencyOverview struct {
 	MainModules []string
 }
 
-func getDepInfo(depGraph *DependencyOverview) {
+func getDepInfo(mainModules []string) *DependencyOverview {
+	depGraph := DependencyOverview{MainModules: mainModules}
 	// get output of "go mod graph" in a string
 	goModGraph := exec.Command("go", "mod", "graph")
 	goModGraphOutput, err := goModGraph.Output()
@@ -85,6 +86,7 @@ func getDepInfo(depGraph *DependencyOverview) {
 			}
 		}
 	}
+	return &depGraph
 }
 
 func printDeps(deps []string) {

@@ -31,8 +31,7 @@ var cyclesCmd = &cobra.Command{
 	Short: "Prints cycles in dependency chains.",
 	Long:  `Will show all the cycles in the dependencies of the project.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		var overview DependencyOverview
-		getDepInfo(&overview)
+		overview := getDepInfo(nil)
 		var cycleChains []Chain
 		var temp Chain
 		getCycleChains(overview.MainModules[0], overview.Graph, temp, &cycleChains)

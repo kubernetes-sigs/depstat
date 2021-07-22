@@ -39,8 +39,7 @@ var statsCmd = &cobra.Command{
 	3. Total Dependencies: Total number of dependencies of the project
 	4. Max Depth of Dependencies: Number of dependencies in the longest dependency chain`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		depGraph := DependencyOverview{MainModules: mainModules}
-		getDepInfo(&depGraph)
+		depGraph := getDepInfo(mainModules)
 
 		// get the longest chain
 		var longestChain Chain
