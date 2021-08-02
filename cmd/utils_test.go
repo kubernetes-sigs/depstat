@@ -45,10 +45,13 @@ func Test_getChains_simple(t *testing.T) {
 	graph["F"] = []string{"H"}
 
 	transDeps := []string{"E", "G", "F", "H"}
+	directDeps := []string{"B", "C", "D"}
+	mainModules := []string{"A"}
 	overview := &DependencyOverview{
-		Graph:          graph,
-		TransDepList:   transDeps,
-		MainModuleName: "A",
+		Graph:         graph,
+		TransDepList:  transDeps,
+		DirectDepList: directDeps,
+		MainModules:   mainModules,
 	}
 
 	var cycleChains []Chain
@@ -137,10 +140,13 @@ func Test_getChains_cycle(t *testing.T) {
 	graph["H"] = []string{"D"}
 
 	transDeps := []string{"D", "E", "F", "G", "H"}
+	directDeps := []string{"B", "C"}
+	mainModules := []string{"A"}
 	overview := &DependencyOverview{
-		Graph:          graph,
-		TransDepList:   transDeps,
-		MainModuleName: "A",
+		Graph:         graph,
+		TransDepList:  transDeps,
+		DirectDepList: directDeps,
+		MainModules:   mainModules,
 	}
 
 	var cycleChains []Chain
@@ -228,11 +234,13 @@ func Test_getChains_cycle_2(t *testing.T) {
 	graph["D"] = []string{"C"}
 
 	transDeps := []string{"C", "B", "E", "F", "D"}
-
+	directDeps := []string{"B", "C"}
+	mainModules := []string{"A"}
 	overview := &DependencyOverview{
-		Graph:          graph,
-		TransDepList:   transDeps,
-		MainModuleName: "A",
+		Graph:         graph,
+		TransDepList:  transDeps,
+		DirectDepList: directDeps,
+		MainModules:   mainModules,
 	}
 
 	var cycleChains []Chain

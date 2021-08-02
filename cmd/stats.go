@@ -25,6 +25,7 @@ import (
 
 var jsonOutput bool
 var verbose bool
+var mainModules []string
 
 type Chain []string
 
@@ -33,22 +34,23 @@ var statsCmd = &cobra.Command{
 	Use:   "stats",
 	Short: "Shows metrics about dependency chains",
 	Long: `Provides the following metrics:
-	1. Total Dependencies: Total number of dependencies of the project
-	2. Max Depth of Dependencies: Number of dependencies in the longest dependency chain
-	3. Transitive Dependencies: Total number of transitive dependencies (dependencies which are not direct dependencies of the project)`,
+	1. Direct Dependencies: Total number of dependencies required by the mainModule(s) directly
+	2. Transitive Dependencies: Total number of transitive dependencies (dependencies which are further needed by direct dependencies of the project)
+	3. Total Dependencies: Total number of dependencies of the mainModule(s)
+	4. Max Depth of Dependencies: Length of the longest chain starting from the first mainModule; defaults to length from the first module encountered in "go mod graph" output`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		depGraph := getDepInfo()
+		depGraph := getDepInfo(mainModules)
 
 		// get the longest chain
 		var longestChain Chain
 		var temp Chain
-		getLongestChain(depGraph.MainModuleName, depGraph.Graph, temp, &longestChain)
+		getLongestChain(depGraph.MainModules[0], depGraph.Graph, temp, &longestChain)
 
 		// get values
 		maxDepth := len(longestChain)
-		directDeps := len(depGraph.Graph[depGraph.MainModuleName])
-		totalDeps := len(getAllDeps(depGraph.Graph[depGraph.MainModuleName], depGraph.TransDepList))
+		directDeps := len(depGraph.DirectDepList)
 		transitiveDeps := len(depGraph.TransDepList)
+		totalDeps := len(getAllDeps(depGraph.DirectDepList, depGraph.TransDepList))
 
 		if !jsonOutput {
 			fmt.Printf("Direct Dependencies: %d \n", directDeps)
@@ -59,7 +61,7 @@ var statsCmd = &cobra.Command{
 
 		if verbose {
 			fmt.Println("All dependencies:")
-			printDeps(append(depGraph.Graph[depGraph.MainModuleName], depGraph.TransDepList...))
+			printDeps(getAllDeps(depGraph.DirectDepList, depGraph.TransDepList))
 		}
 
 		// print the longest chain
@@ -118,4 +120,5 @@ func init() {
 	rootCmd.AddCommand(statsCmd)
 	statsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Get additional details")
 	statsCmd.Flags().BoolVarP(&jsonOutput, "json", "j", false, "Get the output in JSON format")
+	statsCmd.Flags().StringSliceVarP(&mainModules, "mainModules", "m", []string{}, "Enter modules whose dependencies should be considered direct dependencies; defaults to the first module encountered in `go mod graph` output")
 }
