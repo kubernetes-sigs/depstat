@@ -36,8 +36,8 @@ var statsCmd = &cobra.Command{
 	Long: `Provides the following metrics:
 	1. Direct Dependencies: Total number of dependencies required by the mainModule(s) directly
 	2. Transitive Dependencies: Total number of transitive dependencies (dependencies which are further needed by direct dependencies of the project)
-	3. Total Dependencies: Total number of dependencies of the project
-	4. Max Depth of Dependencies: Number of dependencies in the longest dependency chain`,
+	3. Total Dependencies: Total number of dependencies of the mainModule(s)
+	4. Max Depth of Dependencies: Length of the longest chain starting from the first mainModule; defaults to length from the first module encountered in "go mod graph" output`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		depGraph := getDepInfo(mainModules)
 
