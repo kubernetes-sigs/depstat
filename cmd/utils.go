@@ -34,7 +34,7 @@ func printChain(slice []string) {
 type DependencyOverview struct {
 	// Dependency graph edges modelled as node plus adjacency nodes
 	Graph map[string][]string
-	// List of all transitive dependencies
+	// List of all direct dependencies
 	DirectDepList []string
 	// List of all transitive dependencies
 	TransDepList []string
@@ -86,6 +86,7 @@ func getDepInfo(mainModules []string) *DependencyOverview {
 			}
 		}
 	}
+	depGraph.Graph = graph
 	return &depGraph
 }
 
