@@ -28,3 +28,28 @@ Custom Information - if you're copying this template for the first time you can 
 ## Contact Information
 
 - [Slack channel](https://kubernetes.slack.com/messages/k8s-code-organization) 
+
+## PR Workflow
+
+1. Clone the repository by running 
+```
+https://github.com/kubernetes-sigs/depstat.git
+```
+
+2. Create another branch where you'll be making your changes by running,
+
+```
+git checkout -b branch_name
+```
+
+3. After making your changes you can test them by creating a binary of depstat with your changes. To do this run, `go build`. This will create a binary of depstat with your changes in the project root which you can use to test.
+
+4. After you're satisfied with your changes, commit and push your branch:
+
+```
+git add .
+git commit -s -m "commit message goes here"
+git push origin branch_name
+```
+
+5. You can now use this branch to [create a pull request](https://docs.github.com/en/github/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request) to the `main` branch of the project.
