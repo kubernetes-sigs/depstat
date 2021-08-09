@@ -33,7 +33,7 @@ Custom Information - if you're copying this template for the first time you can 
 
 1. Clone the repository by running 
 ```
-https://github.com/kubernetes-sigs/depstat.git
+git clone https://github.com/kubernetes-sigs/depstat.git
 ```
 
 2. Create another branch where you'll be making your changes by running,
@@ -53,3 +53,5 @@ git push origin branch_name
 ```
 
 5. You can now use this branch to [create a pull request](https://docs.github.com/en/github/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request) to the `main` branch of the project.
+
+You can read more about the GitHub Workflow [here](https://www.kubernetes.dev/docs/guide/github-workflow/).

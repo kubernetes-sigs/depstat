@@ -12,7 +12,11 @@ go get github.com/kubernetes-sigs/depstat@latest
 ```
 
 ## Usage
-`depstat` can be used as a standalone command-line application. You can navigate to your go modules enabled project and use `depstat` to produce metrics about your project. Another common way to run `depstat` is in the CI pipeline of your project. This would help you analyze the dependency changes which come with PRs. You can look at how this is done for the [kubernetes/kuberenets](https://github.com/kubernetes/kubernetes) repo using [prow](https://github.com/kubernetes/test-infra/tree/master/prow) [here](https://github.com/kubernetes/test-infra/blob/master/config/jobs/kubernetes/sig-arch/kubernetes-depstat.yaml). 
+
+- `depstat` can be used as a standalone command-line application. You can use `depstat` to produce metrics about the dependencies of your Go modules enabled project.
+
+- Another common way to run `depstat` is in the CI pipeline of your project. This would help you analyze the dependency changes which come with PRs. 
+You can look at how this is done for the [kubernetes/kubernetes](https://github.com/kubernetes/kubernetes) repo using [prow](https://github.com/kubernetes/test-infra/tree/master/prow) [here](https://github.com/kubernetes/test-infra/blob/master/config/jobs/kubernetes/sig-arch/kubernetes-depstat.yaml). 
 
 ## Commands
 
@@ -74,7 +78,7 @@ By default, the graph would be created around the main module (first module in t
 By default, the first module encountered in "go mod graph" output is treated as the main module by `depstat`. Depstat uses this main module to determine the direct and transitive dependencies. This behavior can be changed by specifying the main module manually using the `--mainModules` flag with the stats command. The flag takes a list of modules names, for example:
 
 ```
-depstat stats -m="k8s.io/kubernetes,k8s.io/kubectl"
+depstat stats --mainModules="k8s.io/kubernetes,k8s.io/kubectl"
 ```
 
 ## Project Goals
