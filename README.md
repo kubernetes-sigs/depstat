@@ -63,9 +63,9 @@ By default, the graph would be created around the main module (first module in t
 
 2. Transitive Dependencies: Total number of transitive dependencies (dependencies which are further needed by direct dependencies of the project).
 
-3. Total Dependencies: Total number of dependencies of the [main module(s)](#main-modules(s)).
+3. Total Dependencies: Total number of dependencies of the [main module(s)](#main-module).
 
-4. Max Depth of Dependencies: Length of the longest chain starting from the first [main module](#main-modules(s)); defaults to length from the first module encountered in "go mod graph" output.
+4. Max Depth of Dependencies: Length of the longest chain starting from the first [main module](#main-module); defaults to length from the first module encountered in "go mod graph" output.
 
 - The `--json` flag gives this output in a JSON format.
 - `--verbose` mode will help provide you with the list of all the dependencies and will also print the longest dependency chain.
