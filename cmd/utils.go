@@ -43,7 +43,6 @@ type DependencyOverview struct {
 }
 
 func getDepInfo(mainModules []string) *DependencyOverview {
-	depGraph := DependencyOverview{MainModules: mainModules}
 	// get output of "go mod graph" in a string
 	goModGraph := exec.Command("go", "mod", "graph")
 	goModGraphOutput, err := goModGraph.Output()
@@ -53,40 +52,7 @@ func getDepInfo(mainModules []string) *DependencyOverview {
 	goModGraphOutputString := string(goModGraphOutput)
 
 	// create a graph of dependencies from that output
-	graph := make(map[string][]string)
-	scanner := bufio.NewScanner(strings.NewReader(goModGraphOutputString))
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		words := strings.Fields(line)
-		// remove versions
-		words[0] = (strings.Split(words[0], "@"))[0]
-		words[1] = (strings.Split(words[1], "@"))[0]
-
-		// we don't want to add the same dep again
-		if !contains(graph[words[0]], words[1]) {
-			graph[words[0]] = append(graph[words[0]], words[1])
-		}
-
-		if len(depGraph.MainModules) == 0 {
-			depGraph.MainModules = append(depGraph.MainModules, words[0])
-		}
-
-		// if the LHS is a mainModule
-		// then RHS is a direct dep else transitive dep
-		if contains(depGraph.MainModules, words[0]) && contains(depGraph.MainModules, words[1]) {
-			continue
-		} else if contains(depGraph.MainModules, words[0]) {
-			if !contains(depGraph.DirectDepList, words[1]) {
-				depGraph.DirectDepList = append(depGraph.DirectDepList, words[1])
-			}
-		} else if !contains(depGraph.MainModules, words[0]) {
-			if !contains(depGraph.TransDepList, words[1]) {
-				depGraph.TransDepList = append(depGraph.TransDepList, words[1])
-			}
-		}
-	}
-	depGraph.Graph = graph
+	depGraph := generateGraph(goModGraphOutputString, mainModules)
 	return &depGraph
 }
 
@@ -144,4 +110,45 @@ func sliceContains(val []Chain, key Chain) bool {
 		}
 	}
 	return false
+}
+
+func generateGraph(goModGraphOutputString string, mainModules []string) DependencyOverview {
+	depGraph := DependencyOverview{MainModules: mainModules}
+	graph := make(map[string][]string)
+	scanner := bufio.NewScanner(strings.NewReader(goModGraphOutputString))
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		words := strings.Fields(line)
+		// remove versions
+		words[0] = (strings.Split(words[0], "@"))[0]
+		words[1] = (strings.Split(words[1], "@"))[0]
+
+		// we don't want to add the same dep again
+		if !contains(graph[words[0]], words[1]) {
+			graph[words[0]] = append(graph[words[0]], words[1])
+		}
+
+		if len(depGraph.MainModules) == 0 {
+			depGraph.MainModules = append(depGraph.MainModules, words[0])
+		}
+
+		// if the LHS is a mainModule
+		// then RHS is a direct dep else transitive dep
+		if contains(depGraph.MainModules, words[0]) && contains(depGraph.MainModules, words[1]) {
+			continue
+		} else if contains(depGraph.MainModules, words[0]) {
+			if !contains(depGraph.DirectDepList, words[1]) {
+				depGraph.DirectDepList = append(depGraph.DirectDepList, words[1])
+			}
+		} else if !contains(depGraph.MainModules, words[0]) {
+			if !contains(depGraph.TransDepList, words[1]) {
+				depGraph.TransDepList = append(depGraph.TransDepList, words[1])
+			}
+		}
+	}
+
+	depGraph.Graph = graph
+
+	return depGraph
 }
