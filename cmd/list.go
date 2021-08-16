@@ -17,6 +17,7 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -29,6 +30,11 @@ var listCmd = &cobra.Command{
 	Long: `Gives a list of all the dependencies of the project. 
 	These include both direct as well as transitive dependencies.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+
+		if len(args) != 0 {
+			return errors.New("Invalid input! This command does not take any argumant as input.")
+		}
+
 		depGraph := getDepInfo(nil)
 		fmt.Println("List of all dependencies:")
 		allDeps := getAllDeps(depGraph.DirectDepList, depGraph.TransDepList)
