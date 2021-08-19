@@ -17,6 +17,7 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"encoding/json"
 	"fmt"
 
@@ -39,6 +40,11 @@ var statsCmd = &cobra.Command{
 	3. Total Dependencies: Total number of dependencies of the mainModule(s)
 	4. Max Depth of Dependencies: Length of the longest chain starting from the first mainModule; defaults to length from the first module encountered in "go mod graph" output`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		//returns error if
+		if len(args) != 0 {
+			return errors.New("Invalid input. This command does not take any argument as an input.")
+		}
+
 		depGraph := getDepInfo(mainModules)
 
 		// get the longest chain
