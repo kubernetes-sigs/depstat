@@ -40,7 +40,9 @@ var statsCmd = &cobra.Command{
 	4. Max Depth of Dependencies: Length of the longest chain starting from the first mainModule; defaults to length from the first module encountered in "go mod graph" output`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		depGraph := getDepInfo(mainModules)
-
+		if len(args)!=0{
+			return fmt.Errorf("error: %q does not take any arguments", args[])
+		}
 		// get the longest chain
 		var longestChain Chain
 		var temp Chain
