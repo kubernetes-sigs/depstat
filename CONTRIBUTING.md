@@ -55,3 +55,5 @@ git push origin branch_name
 5. You can now use this branch to [create a pull request](https://docs.github.com/en/github/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request) to the `main` branch of the project.
 
 You can read more about the GitHub Workflow [here](https://www.kubernetes.dev/docs/guide/github-workflow/).
+
+6. One of the important jobs run in the CI is [golangci-lint](https://github.com/golangci/golangci-lint). You might see it complaining about code formatting and its output can be confusing at times. You can run `gofmt -d .` locally to see the changes needed to make the CI happy :)

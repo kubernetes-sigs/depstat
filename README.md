@@ -2,7 +2,7 @@
 
 `depstat` is a command-line tool for analyzing dependencies of Go modules enabled projects. 
 
-![depstat demo with k8s repo](./depstat-k8s-demo.gif)
+![depstat demo with k8s repo](./depstat-demo.gif)
 
 ## Installation 
 To install depstat you can run
