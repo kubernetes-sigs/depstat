@@ -17,7 +17,6 @@ limitations under the License.
 package cmd
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -32,7 +31,7 @@ var listCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 
 		if len(args) != 0 {
-			return errors.New("Invalid input! This command does not take any argumant as input.")
+			return fmt.Errorf("list does not take any arguments")
 		}
 
 		depGraph := getDepInfo(nil)
