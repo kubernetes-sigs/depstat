@@ -1,3 +1,4 @@
 depstat
 .DS_Store
 bin
+dist/
