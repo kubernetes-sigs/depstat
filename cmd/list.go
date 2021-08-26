@@ -31,7 +31,7 @@ var listCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 
 		if len(args) != 0 {
-			return fmt.Errorf("list does not take any argument as input")
+			return fmt.Errorf("list does not take any arguments")
 		}
 
 		depGraph := getDepInfo(nil)
