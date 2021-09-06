@@ -41,6 +41,10 @@ var statsCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		depGraph := getDepInfo(mainModules)
 
+		if len(args) != 0 {
+			return fmt.Errorf("stats does not take any arguments")
+		}
+
 		// get the longest chain
 		var longestChain Chain
 		var temp Chain
