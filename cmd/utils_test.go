@@ -354,3 +354,62 @@ func Test_sliceContains_Fail(t *testing.T) {
 		t.Errorf("Slice a should not have b")
 	}
 }
+
+func getGoModGraphTestData() string {
+	/*
+		Graph:
+		         A
+		       / | \
+		     G   B   D
+		     | \ |  / \
+		     F   C     E
+	*/
+	goModGraphOutputString := `A@1.1 G@1.2
+A@1.1 B@1.3
+A@1.1 D@1.2
+G@1.5 F@1.3
+G@1.5 C@1.1
+B@1.3 C@1.1
+D@1.2 C@1.1
+D@1.2 E@1.8`
+
+	return goModGraphOutputString
+}
+func Test_generateGraph_empty_mainModule(t *testing.T) {
+	depGraph := generateGraph(getGoModGraphTestData(), nil)
+
+	transitiveDependencyList := []string{"F", "C", "E"}
+	directDependencyList := []string{"G", "B", "D"}
+
+	if depGraph.MainModules[0] != "A" {
+		t.Errorf(`"A" must be the main module`)
+	}
+
+	if !isSliceSame(depGraph.DirectDepList, directDependencyList) {
+		t.Errorf("Expected direct dependecies are %s but got %s", directDependencyList, depGraph.DirectDepList)
+	}
+
+	if !isSliceSame(depGraph.TransDepList, transitiveDependencyList) {
+		t.Errorf("Expected transitive dependencies are %s but got %s", transitiveDependencyList, depGraph.TransDepList)
+	}
+}
+
+func Test_generateGraph_custom_mainModule(t *testing.T) {
+	mainModules := []string{"A", "D"}
+	depGraph := generateGraph(getGoModGraphTestData(), mainModules)
+
+	transitiveDependencyList := []string{"F", "C"}
+	directDependencyList := []string{"G", "B", "C", "E"}
+
+	if !isSliceSame(depGraph.MainModules, mainModules) {
+		t.Errorf("Expected mainModules are %s but got %s", mainModules, depGraph.MainModules)
+	}
+
+	if !isSliceSame(depGraph.DirectDepList, directDependencyList) {
+		t.Errorf("Expected direct dependecies are %s but got %s", directDependencyList, depGraph.DirectDepList)
+	}
+
+	if !isSliceSame(depGraph.TransDepList, transitiveDependencyList) {
+		t.Errorf("Expected transitive dependencies are %s but got %s", transitiveDependencyList, depGraph.TransDepList)
+	}
+}
