@@ -8,7 +8,7 @@
 To install depstat you can run
 
 ```
-go get github.com/kubernetes-sigs/depstat@latest
+go install github.com/kubernetes-sigs/depstat@latest
 ```
 
 ## Usage
