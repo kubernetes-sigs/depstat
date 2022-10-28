@@ -17,7 +17,6 @@ limitations under the License.
 package cmd
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -55,10 +54,9 @@ func Test_getChains_simple(t *testing.T) {
 	}
 
 	var cycleChains []Chain
-	var longestChain Chain
 	var chains []Chain
 	var temp Chain
-	getLongestChain("A", graph, temp, &longestChain)
+	longestChain := getLongestChain("A", graph, temp, map[string]Chain{})
 	maxDepth := len(longestChain)
 	getCycleChains("A", graph, temp, &cycleChains)
 	getAllChains("A", graph, temp, &chains)
@@ -80,7 +78,6 @@ func Test_getChains_simple(t *testing.T) {
 "E" -> "F"
 "F" -> "H"
 `
-	fmt.Println(getFileContentsForAllDeps(overview))
 	if correctFileContentsForAllDeps != getFileContentsForAllDeps(overview) {
 		t.Errorf("File contents for graph of all dependencies are wrong")
 	}
@@ -150,10 +147,9 @@ func Test_getChains_cycle(t *testing.T) {
 	}
 
 	var cycleChains []Chain
-	var longestChain Chain
 	var chains []Chain
 	var temp Chain
-	getLongestChain("A", graph, temp, &longestChain)
+	longestChain := getLongestChain("A", graph, temp, map[string]Chain{})
 	maxDepth := len(longestChain)
 	getCycleChains("A", graph, temp, &cycleChains)
 	getAllChains("A", graph, temp, &chains)
@@ -244,10 +240,9 @@ func Test_getChains_cycle_2(t *testing.T) {
 	}
 
 	var cycleChains []Chain
-	var longestChain Chain
 	var chains []Chain
 	var temp Chain
-	getLongestChain("A", graph, temp, &longestChain)
+	longestChain := getLongestChain("A", graph, temp, map[string]Chain{})
 	maxDepth := len(longestChain)
 	getCycleChains("A", graph, temp, &cycleChains)
 	getAllChains("A", graph, temp, &chains)
