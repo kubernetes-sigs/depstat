@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var dir string
 var jsonOutput bool
 var verbose bool
 var mainModules []string
@@ -122,6 +123,7 @@ func getLongestChain(currentDep string, graph map[string][]string, currentChain 
 
 func init() {
 	rootCmd.AddCommand(statsCmd)
+	statsCmd.Flags().StringVarP(&dir, "dir", "d", "", "Directory containing the module to evaluate. Defaults to the current directory.")
 	statsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Get additional details")
 	statsCmd.Flags().BoolVarP(&jsonOutput, "json", "j", false, "Get the output in JSON format")
 	statsCmd.Flags().StringSliceVarP(&mainModules, "mainModules", "m", []string{}, "Enter modules whose dependencies should be considered direct dependencies; defaults to the first module encountered in `go mod graph` output")

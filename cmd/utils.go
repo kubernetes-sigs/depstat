@@ -45,6 +45,9 @@ type DependencyOverview struct {
 func getDepInfo(mainModules []string) *DependencyOverview {
 	// get output of "go mod graph" in a string
 	goModGraph := exec.Command("go", "mod", "graph")
+	if dir != "" {
+		goModGraph.Dir = dir
+	}
 	goModGraphOutput, err := goModGraph.Output()
 	if err != nil {
 		log.Fatal(err)
