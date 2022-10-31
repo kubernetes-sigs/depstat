@@ -17,7 +17,6 @@ limitations under the License.
 package cmd
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -55,10 +54,9 @@ func Test_getChains_simple(t *testing.T) {
 	}
 
 	var cycleChains []Chain
-	var longestChain Chain
 	var chains []Chain
 	var temp Chain
-	getLongestChain("A", graph, temp, &longestChain)
+	longestChain := getLongestChain("A", graph, temp, map[string]Chain{})
 	maxDepth := len(longestChain)
 	getCycleChains("A", graph, temp, &cycleChains)
 	getAllChains("A", graph, temp, &chains)
@@ -80,7 +78,6 @@ func Test_getChains_simple(t *testing.T) {
 "E" -> "F"
 "F" -> "H"
 `
-	fmt.Println(getFileContentsForAllDeps(overview))
 	if correctFileContentsForAllDeps != getFileContentsForAllDeps(overview) {
 		t.Errorf("File contents for graph of all dependencies are wrong")
 	}
@@ -150,10 +147,9 @@ func Test_getChains_cycle(t *testing.T) {
 	}
 
 	var cycleChains []Chain
-	var longestChain Chain
 	var chains []Chain
 	var temp Chain
-	getLongestChain("A", graph, temp, &longestChain)
+	longestChain := getLongestChain("A", graph, temp, map[string]Chain{})
 	maxDepth := len(longestChain)
 	getCycleChains("A", graph, temp, &cycleChains)
 	getAllChains("A", graph, temp, &chains)
@@ -244,10 +240,9 @@ func Test_getChains_cycle_2(t *testing.T) {
 	}
 
 	var cycleChains []Chain
-	var longestChain Chain
 	var chains []Chain
 	var temp Chain
-	getLongestChain("A", graph, temp, &longestChain)
+	longestChain := getLongestChain("A", graph, temp, map[string]Chain{})
 	maxDepth := len(longestChain)
 	getCycleChains("A", graph, temp, &cycleChains)
 	getAllChains("A", graph, temp, &chains)
@@ -364,7 +359,7 @@ func getGoModGraphTestData() string {
 		     | \ |  / \
 		     F   C     E
 	*/
-	goModGraphOutputString := `A@1.1 G@1.2
+	goModGraphOutputString := `A@1.1 G@1.5
 A@1.1 B@1.3
 A@1.1 D@1.2
 G@1.5 F@1.3
@@ -400,6 +395,38 @@ func Test_generateGraph_custom_mainModule(t *testing.T) {
 
 	transitiveDependencyList := []string{"F", "C"}
 	directDependencyList := []string{"G", "B", "C", "E"}
+
+	if !isSliceSame(depGraph.MainModules, mainModules) {
+		t.Errorf("Expected mainModules are %s but got %s", mainModules, depGraph.MainModules)
+	}
+
+	if !isSliceSame(depGraph.DirectDepList, directDependencyList) {
+		t.Errorf("Expected direct dependecies are %s but got %s", directDependencyList, depGraph.DirectDepList)
+	}
+
+	if !isSliceSame(depGraph.TransDepList, transitiveDependencyList) {
+		t.Errorf("Expected transitive dependencies are %s but got %s", transitiveDependencyList, depGraph.TransDepList)
+	}
+}
+
+func Test_generateGraph_overridden_versions(t *testing.T) {
+	mainModules := []string{"A", "D"}
+	// obsolete C@v1 has a cycle with D@v1 and a transitive ref to unwanted dependency E@v1
+	// effective version C@v2 updates to D@v2, which still has a cycle back to C@v2, but no dependency on E
+	depGraph := generateGraph(`A B@v2
+A C@v2
+A D@v2
+B@v2 C@v1
+C@v1 D@v1
+D@v1 C@v1
+D@v1 E@v1
+C@v2 D@v2
+C@v2 F@v2
+D@v2 C@v2
+D@v2 G@v2`, mainModules)
+
+	transitiveDependencyList := []string{"C", "D", "F"}
+	directDependencyList := []string{"B", "C", "G"}
 
 	if !isSliceSame(depGraph.MainModules, mainModules) {
 		t.Errorf("Expected mainModules are %s but got %s", mainModules, depGraph.MainModules)

@@ -7,6 +7,6 @@ build:
 	go build 
 
 .PHONY: lint
-lint: 
-	curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s v1.39.0
-	./bin/golangci-lint run --verbose --enable gofmt
+lint:
+	go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.39.0
+	golangci-lint run --verbose --enable gofmt

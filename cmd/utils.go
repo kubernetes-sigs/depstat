@@ -45,6 +45,9 @@ type DependencyOverview struct {
 func getDepInfo(mainModules []string) *DependencyOverview {
 	// get output of "go mod graph" in a string
 	goModGraph := exec.Command("go", "mod", "graph")
+	if dir != "" {
+		goModGraph.Dir = dir
+	}
 	goModGraphOutput, err := goModGraph.Output()
 	if err != nil {
 		log.Fatal(err)
@@ -112,38 +115,131 @@ func sliceContains(val []Chain, key Chain) bool {
 	return false
 }
 
+type module struct {
+	name    string
+	version string
+}
+
+func parseModule(s string) module {
+	if strings.Contains(s, "@") {
+		parts := strings.SplitN(s, "@", 2)
+		return module{name: parts[0], version: parts[1]}
+	}
+	return module{name: s}
+}
+
 func generateGraph(goModGraphOutputString string, mainModules []string) DependencyOverview {
 	depGraph := DependencyOverview{MainModules: mainModules}
+	versionedGraph := make(map[module][]module)
+	var lhss []module
 	graph := make(map[string][]string)
 	scanner := bufio.NewScanner(strings.NewReader(goModGraphOutputString))
 
+	var versionedMainModules []module
+	var seenVersionedMainModules = map[module]bool{}
 	for scanner.Scan() {
 		line := scanner.Text()
 		words := strings.Fields(line)
-		// remove versions
-		words[0] = (strings.Split(words[0], "@"))[0]
-		words[1] = (strings.Split(words[1], "@"))[0]
 
-		// we don't want to add the same dep again
-		if !contains(graph[words[0]], words[1]) {
-			graph[words[0]] = append(graph[words[0]], words[1])
-		}
-
-		if len(depGraph.MainModules) == 0 {
-			depGraph.MainModules = append(depGraph.MainModules, words[0])
-		}
-
-		// if the LHS is a mainModule
-		// then RHS is a direct dep else transitive dep
-		if contains(depGraph.MainModules, words[0]) && contains(depGraph.MainModules, words[1]) {
-			continue
-		} else if contains(depGraph.MainModules, words[0]) {
-			if !contains(depGraph.DirectDepList, words[1]) {
-				depGraph.DirectDepList = append(depGraph.DirectDepList, words[1])
+		lhs := parseModule(words[0])
+		if len(versionedMainModules) == 0 || contains(mainModules, lhs.name) {
+			if !seenVersionedMainModules[lhs] {
+				// remember our root module and listed main modules
+				versionedMainModules = append(versionedMainModules, lhs)
+				seenVersionedMainModules[lhs] = true
 			}
-		} else if !contains(depGraph.MainModules, words[0]) {
-			if !contains(depGraph.TransDepList, words[1]) {
-				depGraph.TransDepList = append(depGraph.TransDepList, words[1])
+		}
+		if len(depGraph.MainModules) == 0 {
+			// record the first module we see as the main module by default
+			depGraph.MainModules = append(depGraph.MainModules, lhs.name)
+		}
+		rhs := parseModule(words[1])
+
+		// remember the order we observed lhs modules in
+		if len(versionedGraph[lhs]) == 0 {
+			lhss = append(lhss, lhs)
+		}
+		// record this lhs -> rhs relationship
+		versionedGraph[lhs] = append(versionedGraph[lhs], rhs)
+	}
+
+	// record effective versions of modules required by our main modules
+	// in go1.17+, the main module records effective versions of all dependencies, even indirect ones
+	effectiveVersions := map[string]string{}
+	for _, mm := range versionedMainModules {
+		for _, m := range versionedGraph[mm] {
+			if effectiveVersions[m.name] < m.version {
+				effectiveVersions[m.name] = m.version
+			}
+		}
+	}
+
+	type edge struct {
+		from module
+		to   module
+	}
+
+	// figure out which modules in the graph are reachable from the effective versions required by our main modules
+	reachableModules := map[string]module{}
+	// start with our main modules
+	var toVisit []edge
+	for _, m := range versionedMainModules {
+		toVisit = append(toVisit, edge{to: m})
+	}
+	for len(toVisit) > 0 {
+		from := toVisit[0].from
+		v := toVisit[0].to
+		toVisit = toVisit[1:]
+		if _, reachable := reachableModules[v.name]; reachable {
+			// already flagged as reachable
+			continue
+		}
+		// mark as reachable
+		reachableModules[v.name] = from
+		if effectiveVersion, ok := effectiveVersions[v.name]; ok && effectiveVersion > v.version {
+			// replace with the effective version if applicable
+			v.version = effectiveVersion
+		} else {
+			// set the effective version
+			effectiveVersions[v.name] = v.version
+		}
+		// queue dependants of this to check for reachability
+		for _, m := range versionedGraph[v] {
+			toVisit = append(toVisit, edge{from: v, to: m})
+		}
+	}
+
+	for _, lhs := range lhss {
+		if _, reachable := reachableModules[lhs.name]; !reachable {
+			// this is not reachable via required versions, skip it
+			continue
+		}
+		if effectiveVersion, ok := effectiveVersions[lhs.name]; ok && effectiveVersion != lhs.version {
+			// this is not the effective version in our graph, skip it
+			continue
+		}
+		// fmt.Println(lhs.name, "via", reachableModules[lhs.name])
+
+		for _, rhs := range versionedGraph[lhs] {
+			// we don't want to add the same dep again
+			if !contains(graph[lhs.name], rhs.name) {
+				graph[lhs.name] = append(graph[lhs.name], rhs.name)
+			}
+
+			// if the LHS is a mainModule
+			// then RHS is a direct dep else transitive dep
+			if contains(depGraph.MainModules, lhs.name) && contains(depGraph.MainModules, rhs.name) {
+				continue
+			} else if contains(depGraph.MainModules, lhs.name) {
+				if !contains(depGraph.DirectDepList, rhs.name) {
+					// fmt.Println(rhs.name, "via", lhs)
+					depGraph.DirectDepList = append(depGraph.DirectDepList, rhs.name)
+				}
+			} else if !contains(depGraph.MainModules, lhs.name) {
+				if !contains(depGraph.TransDepList, rhs.name) {
+					// fmt.Println(rhs.name, "via", lhs)
+					depGraph.TransDepList = append(depGraph.TransDepList, rhs.name)
+				}
 			}
 		}
 	}

@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var dir string
 var jsonOutput bool
 var verbose bool
 var mainModules []string
@@ -46,10 +47,8 @@ var statsCmd = &cobra.Command{
 		}
 
 		// get the longest chain
-		var longestChain Chain
 		var temp Chain
-		getLongestChain(depGraph.MainModules[0], depGraph.Graph, temp, &longestChain)
-
+		longestChain := getLongestChain(depGraph.MainModules[0], depGraph.Graph, temp, map[string]Chain{})
 		// get values
 		maxDepth := len(longestChain)
 		directDeps := len(depGraph.DirectDepList)
@@ -98,30 +97,44 @@ var statsCmd = &cobra.Command{
 }
 
 // get the longest chain starting from currentDep
-func getLongestChain(currentDep string, graph map[string][]string, currentChain Chain, longestChain *Chain) {
+func getLongestChain(currentDep string, graph map[string][]string, currentChain Chain, longestChains map[string]Chain) Chain {
+	// fmt.Println(strings.Repeat("  ", len(currentChain)), currentDep)
+
+	// already computed
+	if longestChain, ok := longestChains[currentDep]; ok {
+		return longestChain
+	}
+
+	deps := graph[currentDep]
+
+	if len(deps) == 0 {
+		// we have no dependencies, our longest chain is just us
+		longestChains[currentDep] = Chain{currentDep}
+		return longestChains[currentDep]
+	}
+
+	if contains(currentChain, currentDep) {
+		// we've already been visited in the current chain, avoid cycles but also don't record a longest chain for currentDep
+		return nil
+	}
+
 	currentChain = append(currentChain, currentDep)
-	_, ok := graph[currentDep]
-	if ok {
-		for _, dep := range graph[currentDep] {
-			if !contains(currentChain, dep) {
-				cpy := make(Chain, len(currentChain))
-				copy(cpy, currentChain)
-				getLongestChain(dep, graph, cpy, longestChain)
-			} else {
-				if len(currentChain) > len(*longestChain) {
-					*longestChain = currentChain
-				}
-			}
-		}
-	} else {
-		if len(currentChain) > len(*longestChain) {
-			*longestChain = currentChain
+	// find the longest dependency chain
+	var longestDepChain Chain
+	for _, dep := range deps {
+		depChain := getLongestChain(dep, graph, currentChain, longestChains)
+		if len(depChain) > len(longestDepChain) {
+			longestDepChain = depChain
 		}
 	}
+	// prepend ourselves to the longest of our dependencies' chains and persist
+	longestChains[currentDep] = append(Chain{currentDep}, longestDepChain...)
+	return longestChains[currentDep]
 }
 
 func init() {
 	rootCmd.AddCommand(statsCmd)
+	statsCmd.Flags().StringVarP(&dir, "dir", "d", "", "Directory containing the module to evaluate. Defaults to the current directory.")
 	statsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Get additional details")
 	statsCmd.Flags().BoolVarP(&jsonOutput, "json", "j", false, "Get the output in JSON format")
 	statsCmd.Flags().StringSliceVarP(&mainModules, "mainModules", "m", []string{}, "Enter modules whose dependencies should be considered direct dependencies; defaults to the first module encountered in `go mod graph` output")
