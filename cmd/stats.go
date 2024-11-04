@@ -25,6 +25,7 @@ import (
 
 var dir string
 var jsonOutput bool
+var csvOutput bool
 var verbose bool
 var mainModules []string
 
@@ -55,7 +56,7 @@ var statsCmd = &cobra.Command{
 		transitiveDeps := len(depGraph.TransDepList)
 		totalDeps := len(getAllDeps(depGraph.DirectDepList, depGraph.TransDepList))
 
-		if !jsonOutput {
+		if !jsonOutput && !csvOutput {
 			fmt.Printf("Direct Dependencies: %d \n", directDeps)
 			fmt.Printf("Transitive Dependencies: %d \n", transitiveDeps)
 			fmt.Printf("Total Dependencies: %d \n", totalDeps)
@@ -91,6 +92,10 @@ var statsCmd = &cobra.Command{
 				return err
 			}
 			fmt.Print(string(outputRaw))
+		}
+		if csvOutput {
+			fmt.Println("Direct,Transitive,Total,MaxDepth")
+			fmt.Printf("%d,%d,%d,%d\n", directDeps, transitiveDeps, totalDeps, maxDepth)
 		}
 		return nil
 	},
@@ -137,5 +142,6 @@ func init() {
 	statsCmd.Flags().StringVarP(&dir, "dir", "d", "", "Directory containing the module to evaluate. Defaults to the current directory.")
 	statsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Get additional details")
 	statsCmd.Flags().BoolVarP(&jsonOutput, "json", "j", false, "Get the output in JSON format")
+	statsCmd.Flags().BoolVarP(&csvOutput, "csv", "c", false, "Get the output in CSV format")
 	statsCmd.Flags().StringSliceVarP(&mainModules, "mainModules", "m", []string{}, "Enter modules whose dependencies should be considered direct dependencies; defaults to the first module encountered in `go mod graph` output")
 }
