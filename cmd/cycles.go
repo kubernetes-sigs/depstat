@@ -30,12 +30,8 @@ var cyclesCmd = &cobra.Command{
 	Use:   "cycles",
 	Short: "Prints cycles in dependency chains.",
 	Long:  `Will show all the cycles in the dependencies of the project.`,
+	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-
-		if len(args) != 0 {
-			return fmt.Errorf("cycles does not take any arguments")
-		}
-
 		overview := getDepInfo(nil)
 		var cycleChains []Chain
 		var temp Chain

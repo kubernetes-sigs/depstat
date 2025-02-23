@@ -28,12 +28,8 @@ var listCmd = &cobra.Command{
 	Short: "Lists all project dependencies",
 	Long: `Gives a list of all the dependencies of the project. 
 	These include both direct as well as transitive dependencies.`,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-
-		if len(args) != 0 {
-			return fmt.Errorf("list does not take any arguments")
-		}
-
 		depGraph := getDepInfo(nil)
 		fmt.Println("List of all dependencies:")
 		allDeps := getAllDeps(depGraph.DirectDepList, depGraph.TransDepList)
