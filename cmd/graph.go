@@ -18,7 +18,7 @@ package cmd
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"sort"
 	"strings"
 
@@ -50,7 +50,7 @@ var graphCmd = &cobra.Command{
 		}
 		fileContents += "}"
 		fileContentsByte := []byte(fileContents)
-		err := ioutil.WriteFile("./graph.dot", fileContentsByte, 0644)
+		err := os.WriteFile("./graph.dot", fileContentsByte, 0644)
 		if err != nil {
 			return err
 		}
