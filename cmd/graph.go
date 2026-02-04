@@ -26,15 +26,20 @@ import (
 )
 
 var dep string
+var showEdgeTypes bool
 
 var graphCmd = &cobra.Command{
 	Use:   "graph",
 	Short: "Generate a .dot file to be used with Graphviz's dot command.",
 	Long: `A graph.dot file will be generated which can be used with Graphviz's dot command.
 	For example to generate a svg image use:
-	twopi -Tsvg -o dag.svg graph.dot`,
+	twopi -Tsvg -o dag.svg graph.dot
+
+	Use --show-edge-types to distinguish between direct and transitive dependencies:
+	- Direct edges (solid blue): from main module(s) to their direct dependencies
+	- Transitive edges (dashed gray): dependencies of dependencies`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		overview := getDepInfo(nil)
+		overview := getDepInfo(mainModules)
 		// strict ensures that there is only one edge between two vertices
 		// overlap = false ensures the vertices don't overlap
 		fileContents := "strict digraph {\ngraph [overlap=false];\n"
@@ -46,7 +51,7 @@ var graphCmd = &cobra.Command{
 			getAllChains(overview.MainModules[0], overview.Graph, temp, &chains)
 			fileContents += getFileContentsForSingleDep(chains, dep)
 		} else {
-			fileContents += getFileContentsForAllDeps(overview)
+			fileContents += getFileContentsForAllDepsWithTypes(overview, showEdgeTypes)
 		}
 		fileContents += "}"
 		fileContentsByte := []byte(fileContents)
@@ -104,12 +109,30 @@ func getFileContentsForSingleDep(chains []Chain, dep string) string {
 // get the contents of the .dot file for the graph
 // of all dependencies (when -d is not set)
 func getFileContentsForAllDeps(overview *DependencyOverview) string {
+	return getFileContentsForAllDepsWithTypes(overview, false)
+}
 
+// getFileContentsForAllDepsWithTypes generates DOT content with optional edge type annotations
+func getFileContentsForAllDepsWithTypes(overview *DependencyOverview, showTypes bool) string {
 	// color the main module as yellow
 	data := colorMainNode(overview.MainModules[0])
+
+	// Create a set of main modules for quick lookup
+	mainModSet := make(map[string]bool)
+	for _, m := range overview.MainModules {
+		mainModSet[m] = true
+	}
+
+	// Create a set of direct dependencies for quick lookup
+	directDepSet := make(map[string]bool)
+	for _, d := range overview.DirectDepList {
+		directDepSet[d] = true
+	}
+
 	allDeps := getAllDeps(overview.DirectDepList, overview.TransDepList)
 	allDeps = append(allDeps, overview.MainModules[0])
 	sort.Strings(allDeps)
+
 	for _, dep := range allDeps {
 		_, ok := overview.Graph[dep]
 		if !ok {
@@ -117,11 +140,22 @@ func getFileContentsForAllDeps(overview *DependencyOverview) string {
 		}
 		// main module can never be a neighbour
 		for _, neighbour := range overview.Graph[dep] {
-			if dep == overview.MainModules[0] {
+			var edgeAttrs string
+			if showTypes {
+				if mainModSet[dep] {
+					// Edge from main module = direct dependency
+					edgeAttrs = " [color=\"blue\", style=\"bold\", edgetype=\"direct\"]"
+				} else {
+					// Edge from non-main module = transitive dependency
+					edgeAttrs = " [color=\"gray\", style=\"dashed\", edgetype=\"transitive\"]"
+				}
+			}
+
+			if mainModSet[dep] {
 				// for the main module use a colored node
-				data += fmt.Sprintf("\"MainNode\" -> \"%s\"\n", neighbour)
+				data += fmt.Sprintf("\"MainNode\" -> \"%s\"%s\n", neighbour, edgeAttrs)
 			} else {
-				data += fmt.Sprintf("\"%s\" -> \"%s\"\n", dep, neighbour)
+				data += fmt.Sprintf("\"%s\" -> \"%s\"%s\n", dep, neighbour, edgeAttrs)
 			}
 		}
 	}
@@ -144,4 +178,6 @@ func colorMainNode(mainNode string) string {
 func init() {
 	rootCmd.AddCommand(graphCmd)
 	graphCmd.Flags().StringVarP(&dep, "dep", "d", "", "Specify dependency to create a graph around")
+	graphCmd.Flags().BoolVar(&showEdgeTypes, "show-edge-types", false, "Distinguish direct vs transitive edges with colors/styles")
+	graphCmd.Flags().StringSliceVarP(&mainModules, "mainModules", "m", []string{}, "Specify main modules")
 }
