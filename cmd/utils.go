@@ -42,7 +42,33 @@ type DependencyOverview struct {
 	MainModules []string
 }
 
+// getMainModule returns the main module name using "go list -m"
+func getMainModule() string {
+	goListM := exec.Command("go", "list", "-m")
+	if dir != "" {
+		goListM.Dir = dir
+	}
+	output, err := goListM.Output()
+	if err != nil {
+		return ""
+	}
+	// In workspaces, "go list -m" returns multiple modules, one per line.
+	// The first line is the main module of the current directory.
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	if len(lines) > 0 {
+		return strings.TrimSpace(lines[0])
+	}
+	return ""
+}
+
 func getDepInfo(mainModules []string) *DependencyOverview {
+	// If no main modules specified, detect using "go list -m"
+	if len(mainModules) == 0 {
+		if mainMod := getMainModule(); mainMod != "" {
+			mainModules = []string{mainMod}
+		}
+	}
+
 	// get output of "go mod graph" in a string
 	goModGraph := exec.Command("go", "mod", "graph")
 	if dir != "" {
@@ -142,6 +168,11 @@ func generateGraph(goModGraphOutputString string, mainModules []string) Dependen
 		words := strings.Fields(line)
 
 		lhs := parseModule(words[0])
+		// Skip go toolchain lines (e.g., "go@1.21.0 toolchain@go1.21.0")
+		// These are not real modules and should not be treated as main modules
+		if lhs.name == "go" || strings.HasPrefix(lhs.name, "toolchain") {
+			continue
+		}
 		if len(versionedMainModules) == 0 || contains(mainModules, lhs.name) {
 			if !seenVersionedMainModules[lhs] {
 				// remember our root module and listed main modules
