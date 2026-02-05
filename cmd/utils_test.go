@@ -53,14 +53,12 @@ func Test_getChains_simple(t *testing.T) {
 		MainModules:   mainModules,
 	}
 
-	var cycleChains []Chain
 	var chains []Chain
 	var temp Chain
 	longestChain := getLongestChain("A", graph, temp, map[string]Chain{})
 	maxDepth := len(longestChain)
-	getCycleChains("A", graph, temp, &cycleChains)
 	getAllChains("A", graph, temp, &chains)
-	cycles := getCycles(cycleChains)
+	cycles := findAllCycles(graph)
 
 	correctChains := [][]string{
 		{"A", "B", "E", "F", "H"},
@@ -146,14 +144,12 @@ func Test_getChains_cycle(t *testing.T) {
 		MainModules:   mainModules,
 	}
 
-	var cycleChains []Chain
 	var chains []Chain
 	var temp Chain
 	longestChain := getLongestChain("A", graph, temp, map[string]Chain{})
 	maxDepth := len(longestChain)
-	getCycleChains("A", graph, temp, &cycleChains)
 	getAllChains("A", graph, temp, &chains)
-	cycles := getCycles(cycleChains)
+	cycles := findAllCycles(graph)
 
 	correctFileContentsForAllDeps := `MainNode [label="A", style="filled" color="yellow"]
 "MainNode" -> "B"
@@ -186,14 +182,14 @@ func Test_getChains_cycle(t *testing.T) {
 		t.Errorf("File contents for graph of a single dependency are wrong")
 	}
 
-	cyc := []string{"D", "F", "G", "H", "D"}
-
+	// Johnson's algorithm finds one cycle: D -> F -> G -> H -> D
 	if len(cycles) != 1 {
-		t.Errorf("Number of cycles is not correct")
+		t.Errorf("Number of cycles is not correct, expected 1, got %d: %v", len(cycles), cycles)
 	}
 
-	if !isSliceSame(cycles[0], cyc) {
-		t.Errorf("Cycle is not correct")
+	cyc := []string{"D", "F", "G", "H", "D"}
+	if len(cycles) > 0 && !isSliceSame(cycles[0], cyc) {
+		t.Errorf("Cycle is not correct, expected %v, got %v", cyc, cycles[0])
 	}
 
 	if maxDepth != 6 {
@@ -239,14 +235,12 @@ func Test_getChains_cycle_2(t *testing.T) {
 		MainModules:   mainModules,
 	}
 
-	var cycleChains []Chain
 	var chains []Chain
 	var temp Chain
 	longestChain := getLongestChain("A", graph, temp, map[string]Chain{})
 	maxDepth := len(longestChain)
-	getCycleChains("A", graph, temp, &cycleChains)
 	getAllChains("A", graph, temp, &chains)
-	cycles := getCycles(cycleChains)
+	cycles := findAllCycles(graph)
 
 	correctChains := [][]string{
 		{"A", "B", "C"},
@@ -286,23 +280,32 @@ func Test_getChains_cycle_2(t *testing.T) {
 		t.Errorf("Max depth of dependencies was incorrect")
 	}
 
-	if len(cycles) != 3 {
-		t.Errorf("Number of cycles is incorrect")
+	// Johnson's algorithm finds 2 elementary cycles:
+	// 1. B -> C -> B (the mutual dependency)
+	// 2. C -> E -> F -> D -> C (the longer cycle)
+	// Note: B-C-B and C-B-C are the same cycle, Johnson's reports each unique cycle once
+	if len(cycles) != 2 {
+		t.Errorf("Number of cycles is incorrect, expected 2, got %d: %v", len(cycles), cycles)
 	}
+
+	// Verify the cycles found
 	cyc1 := []string{"B", "C", "B"}
 	cyc2 := []string{"C", "E", "F", "D", "C"}
-	cyc3 := []string{"C", "B", "C"}
-
-	if !isSliceSame(cycles[0], cyc1) {
-		t.Errorf("B C B cycle is incorrect")
+	foundCyc1 := false
+	foundCyc2 := false
+	for _, c := range cycles {
+		if isSliceSame(c, cyc1) {
+			foundCyc1 = true
+		}
+		if isSliceSame(c, cyc2) {
+			foundCyc2 = true
+		}
 	}
-
-	if !isSliceSame(cycles[1], cyc2) {
-		t.Errorf("C E F D C cycle is incorrect")
+	if !foundCyc1 {
+		t.Errorf("Expected cycle B-C-B not found in %v", cycles)
 	}
-
-	if !isSliceSame(cycles[2], cyc3) {
-		t.Errorf("C B C cycle is incorrect")
+	if !foundCyc2 {
+		t.Errorf("Expected cycle C-E-F-D-C not found in %v", cycles)
 	}
 
 	correctLongestChain := []string{"A", "B", "C", "E", "F", "D"}

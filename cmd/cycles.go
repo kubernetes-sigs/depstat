@@ -19,11 +19,24 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	"github.com/spf13/cobra"
 )
 
 var jsonOutputCycles bool
+
+// cyclesFinder implements Johnson's algorithm for finding all elementary cycles
+// in a directed graph. Time complexity: O((V+E)(C+1)) where C is the number of cycles.
+type cyclesFinder struct {
+	graph      map[string][]string
+	nodeIndex  map[string]int
+	indexNode  []string
+	blocked    []bool
+	blockedMap []map[int]bool
+	stack      []int
+	cycles     []Chain
+}
 
 // analyzeDepsCmd represents the analyzeDeps command
 var cyclesCmd = &cobra.Command{
@@ -37,10 +50,7 @@ var cyclesCmd = &cobra.Command{
 		}
 
 		overview := getDepInfo(mainModules)
-		var cycleChains []Chain
-		var temp Chain
-		getCycleChains(overview.MainModules[0], overview.Graph, temp, &cycleChains)
-		cycles := getCycles(cycleChains)
+		cycles := findAllCycles(overview.Graph)
 
 		if !jsonOutputCycles {
 			fmt.Println("All cycles in dependencies are: ")
@@ -64,43 +74,227 @@ var cyclesCmd = &cobra.Command{
 	},
 }
 
-// get all chains which have a cycle
-func getCycleChains(currentDep string, graph map[string][]string, currentChain Chain, cycleChains *[]Chain) {
-	currentChain = append(currentChain, currentDep)
-	_, ok := graph[currentDep]
-	if ok {
-		for _, dep := range graph[currentDep] {
-			if !contains(currentChain, dep) {
-				cpy := make(Chain, len(currentChain))
-				copy(cpy, currentChain)
-				getCycleChains(dep, graph, cpy, cycleChains)
-			} else {
-				*cycleChains = append(*cycleChains, append(currentChain, dep))
+// findAllCycles finds all elementary cycles in the graph using Johnson's algorithm.
+// Time complexity: O((V+E)(C+1)) where C is the number of cycles.
+func findAllCycles(graph map[string][]string) []Chain {
+	// Collect all nodes
+	nodeSet := make(map[string]bool)
+	for node := range graph {
+		nodeSet[node] = true
+	}
+	for _, deps := range graph {
+		for _, dep := range deps {
+			nodeSet[dep] = true
+		}
+	}
+
+	// Create sorted node list for deterministic output
+	nodes := make([]string, 0, len(nodeSet))
+	for node := range nodeSet {
+		nodes = append(nodes, node)
+	}
+	sort.Strings(nodes)
+
+	// Create node index mappings
+	nodeIndex := make(map[string]int)
+	for i, node := range nodes {
+		nodeIndex[node] = i
+	}
+
+	cf := &cyclesFinder{
+		graph:      graph,
+		nodeIndex:  nodeIndex,
+		indexNode:  nodes,
+		blocked:    make([]bool, len(nodes)),
+		blockedMap: make([]map[int]bool, len(nodes)),
+		stack:      make([]int, 0),
+		cycles:     make([]Chain, 0),
+	}
+
+	for i := range cf.blockedMap {
+		cf.blockedMap[i] = make(map[int]bool)
+	}
+
+	// Johnson's algorithm: iterate through each node as potential cycle start
+	for startIdx := 0; startIdx < len(nodes); startIdx++ {
+		// Find SCCs in subgraph induced by nodes[startIdx:]
+		subgraphSCC := cf.findSCCContaining(startIdx)
+
+		if len(subgraphSCC) > 0 {
+			// Reset blocked state for nodes in this SCC
+			for _, nodeIdx := range subgraphSCC {
+				cf.blocked[nodeIdx] = false
+				cf.blockedMap[nodeIdx] = make(map[int]bool)
 			}
+
+			// Find cycles starting from startIdx within this SCC
+			sccSet := make(map[int]bool)
+			for _, idx := range subgraphSCC {
+				sccSet[idx] = true
+			}
+			cf.circuit(startIdx, startIdx, sccSet)
+		}
+	}
+
+	return cf.cycles
+}
+
+// findSCCContaining finds the SCC containing startIdx in the subgraph induced by nodes >= startIdx
+func (cf *cyclesFinder) findSCCContaining(startIdx int) []int {
+	n := len(cf.indexNode)
+
+	// Tarjan's algorithm on subgraph
+	index := 0
+	indices := make(map[int]int)
+	lowlinks := make(map[int]int)
+	onStack := make(map[int]bool)
+	stack := make([]int, 0)
+
+	var strongConnect func(v int) []int
+	strongConnect = func(v int) []int {
+		indices[v] = index
+		lowlinks[v] = index
+		index++
+		stack = append(stack, v)
+		onStack[v] = true
+
+		for _, neighbor := range cf.graph[cf.indexNode[v]] {
+			neighborIdx := cf.nodeIndex[neighbor]
+			// Only consider nodes >= startIdx (subgraph restriction)
+			if neighborIdx < startIdx {
+				continue
+			}
+			if _, visited := indices[neighborIdx]; !visited {
+				result := strongConnect(neighborIdx)
+				if result != nil && containsInt(result, startIdx) {
+					return result
+				}
+				if lowlinks[neighborIdx] < lowlinks[v] {
+					lowlinks[v] = lowlinks[neighborIdx]
+				}
+			} else if onStack[neighborIdx] {
+				if indices[neighborIdx] < lowlinks[v] {
+					lowlinks[v] = indices[neighborIdx]
+				}
+			}
+		}
+
+		// If v is a root of an SCC
+		if lowlinks[v] == indices[v] {
+			var scc []int
+			for {
+				w := stack[len(stack)-1]
+				stack = stack[:len(stack)-1]
+				onStack[w] = false
+				scc = append(scc, w)
+				if w == v {
+					break
+				}
+			}
+			// Return SCC containing startIdx if it has more than one node or has a self-loop
+			if containsInt(scc, startIdx) && (len(scc) > 1 || cf.hasSelfLoop(startIdx)) {
+				return scc
+			}
+		}
+		return nil
+	}
+
+	// Start from startIdx
+	if _, visited := indices[startIdx]; !visited {
+		result := strongConnect(startIdx)
+		if result != nil {
+			return result
+		}
+	}
+
+	// Check other nodes in subgraph that might reach startIdx
+	for i := startIdx; i < n; i++ {
+		if _, visited := indices[i]; !visited {
+			result := strongConnect(i)
+			if result != nil && containsInt(result, startIdx) {
+				return result
+			}
+		}
+	}
+
+	return nil
+}
+
+// hasSelfLoop checks if a node has an edge to itself
+func (cf *cyclesFinder) hasSelfLoop(nodeIdx int) bool {
+	nodeName := cf.indexNode[nodeIdx]
+	for _, neighbor := range cf.graph[nodeName] {
+		if cf.nodeIndex[neighbor] == nodeIdx {
+			return true
+		}
+	}
+	return false
+}
+
+// circuit is the main recursive function in Johnson's algorithm
+func (cf *cyclesFinder) circuit(v, start int, sccSet map[int]bool) bool {
+	found := false
+	cf.stack = append(cf.stack, v)
+	cf.blocked[v] = true
+
+	for _, neighbor := range cf.graph[cf.indexNode[v]] {
+		neighborIdx := cf.nodeIndex[neighbor]
+
+		// Only consider nodes in the current SCC
+		if !sccSet[neighborIdx] {
+			continue
+		}
+
+		if neighborIdx == start {
+			// Found a cycle
+			cycle := make(Chain, len(cf.stack)+1)
+			for i, idx := range cf.stack {
+				cycle[i] = cf.indexNode[idx]
+			}
+			cycle[len(cf.stack)] = cf.indexNode[start]
+			cf.cycles = append(cf.cycles, cycle)
+			found = true
+		} else if !cf.blocked[neighborIdx] {
+			if cf.circuit(neighborIdx, start, sccSet) {
+				found = true
+			}
+		}
+	}
+
+	if found {
+		cf.unblock(v)
+	} else {
+		for _, neighbor := range cf.graph[cf.indexNode[v]] {
+			neighborIdx := cf.nodeIndex[neighbor]
+			if sccSet[neighborIdx] {
+				cf.blockedMap[neighborIdx][v] = true
+			}
+		}
+	}
+
+	cf.stack = cf.stack[:len(cf.stack)-1]
+	return found
+}
+
+// unblock unblocks a node and recursively unblocks nodes that were blocked because of it
+func (cf *cyclesFinder) unblock(v int) {
+	cf.blocked[v] = false
+	for w := range cf.blockedMap[v] {
+		delete(cf.blockedMap[v], w)
+		if cf.blocked[w] {
+			cf.unblock(w)
 		}
 	}
 }
 
-// gets the cycles from the cycleChains
-func getCycles(cycleChains []Chain) []Chain {
-	var cycles []Chain
-	for _, chain := range cycleChains {
-		var cycle Chain
-		start := false
-		startDep := chain[len(chain)-1]
-		for _, val := range chain {
-			if val == startDep {
-				start = true
-			}
-			if start {
-				cycle = append(cycle, val)
-			}
-		}
-		if !sliceContains(cycles, cycle) {
-			cycles = append(cycles, cycle)
+// containsInt checks if a slice contains an integer
+func containsInt(slice []int, val int) bool {
+	for _, v := range slice {
+		if v == val {
+			return true
 		}
 	}
-	return cycles
+	return false
 }
 
 func init() {
