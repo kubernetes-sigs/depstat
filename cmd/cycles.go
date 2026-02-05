@@ -36,7 +36,7 @@ var cyclesCmd = &cobra.Command{
 			return fmt.Errorf("cycles does not take any arguments")
 		}
 
-		overview := getDepInfo(nil)
+		overview := getDepInfo(mainModules)
 		var cycleChains []Chain
 		var temp Chain
 		getCycleChains(overview.MainModules[0], overview.Graph, temp, &cycleChains)
@@ -106,4 +106,5 @@ func getCycles(cycleChains []Chain) []Chain {
 func init() {
 	rootCmd.AddCommand(cyclesCmd)
 	cyclesCmd.Flags().BoolVarP(&jsonOutputCycles, "json", "j", false, "Get the output in JSON format")
+	cyclesCmd.Flags().StringSliceVarP(&mainModules, "mainModules", "m", []string{}, "Enter modules whose dependencies should be considered direct dependencies; defaults to the first module encountered in `go mod graph` output")
 }
