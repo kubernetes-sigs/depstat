@@ -412,6 +412,87 @@ func Test_generateGraph_custom_mainModule(t *testing.T) {
 	}
 }
 
+func Test_parseModWhyOutput_testOnly(t *testing.T) {
+	output := `# github.com/prod/dep
+main/pkg
+github.com/prod/dep/internal
+
+# github.com/test/dep
+main/pkg/foo.test
+main/pkg/foo/testing
+github.com/test/dep
+
+# github.com/unused/dep
+(main module does not need module github.com/unused/dep)
+
+# github.com/another/prod
+main/cmd
+github.com/another/prod/lib
+`
+	result := parseModWhyOutput(output)
+
+	// github.com/test/dep should be test-only (has .test in path)
+	if !result["github.com/test/dep"] {
+		t.Errorf("expected github.com/test/dep to be test-only")
+	}
+
+	// github.com/prod/dep should NOT be test-only
+	if result["github.com/prod/dep"] {
+		t.Errorf("expected github.com/prod/dep to NOT be test-only")
+	}
+
+	// github.com/another/prod should NOT be test-only
+	if result["github.com/another/prod"] {
+		t.Errorf("expected github.com/another/prod to NOT be test-only")
+	}
+
+	// github.com/unused/dep should NOT be in the set (it's unused, not test-only)
+	if result["github.com/unused/dep"] {
+		t.Errorf("expected github.com/unused/dep to NOT be in test-only set")
+	}
+}
+
+func Test_parseModWhyOutput_empty(t *testing.T) {
+	result := parseModWhyOutput("")
+	if len(result) != 0 {
+		t.Errorf("expected empty result for empty input, got %v", result)
+	}
+}
+
+func Test_parseModWhyOutput_allTestOnly(t *testing.T) {
+	output := `# github.com/a
+main/pkg.test
+github.com/a
+
+# github.com/b
+main/other.test
+main/other/testutil
+github.com/b/pkg
+`
+	result := parseModWhyOutput(output)
+	if !result["github.com/a"] {
+		t.Errorf("expected github.com/a to be test-only")
+	}
+	if !result["github.com/b"] {
+		t.Errorf("expected github.com/b to be test-only")
+	}
+}
+
+func Test_parseModWhyOutput_noTestOnly(t *testing.T) {
+	output := `# github.com/a
+main/pkg
+github.com/a
+
+# github.com/b
+main/cmd
+github.com/b/pkg
+`
+	result := parseModWhyOutput(output)
+	if len(result) != 0 {
+		t.Errorf("expected no test-only deps, got %v", result)
+	}
+}
+
 func Test_generateGraph_overridden_versions(t *testing.T) {
 	mainModules := []string{"A", "D"}
 	// obsolete C@v1 has a cycle with D@v1 and a transitive ref to unwanted dependency E@v1

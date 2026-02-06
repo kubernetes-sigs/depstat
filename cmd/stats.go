@@ -28,6 +28,7 @@ var jsonOutput bool
 var csvOutput bool
 var verbose bool
 var mainModules []string
+var splitTestOnly bool
 
 type Chain []string
 
@@ -54,18 +55,43 @@ var statsCmd = &cobra.Command{
 		maxDepth := len(longestChain)
 		directDeps := len(depGraph.DirectDepList)
 		transitiveDeps := len(depGraph.TransDepList)
-		totalDeps := len(getAllDeps(depGraph.DirectDepList, depGraph.TransDepList))
+		allDeps := getAllDeps(depGraph.DirectDepList, depGraph.TransDepList)
+		totalDeps := len(allDeps)
+
+		testOnlyDeps := 0
+		nonTestOnlyDeps := 0
+		var testOnlySet map[string]bool
+		if splitTestOnly {
+			var err error
+			testOnlySet, err = classifyTestDeps(allDeps)
+			if err != nil {
+				return fmt.Errorf("failed to classify dependencies as test-only/non-test: %w", err)
+			}
+			testOnlyDeps = len(filterDepsByTestStatus(allDeps, testOnlySet, true))
+			nonTestOnlyDeps = len(filterDepsByTestStatus(allDeps, testOnlySet, false))
+		}
 
 		if !jsonOutput && !csvOutput {
 			fmt.Printf("Direct Dependencies: %d \n", directDeps)
 			fmt.Printf("Transitive Dependencies: %d \n", transitiveDeps)
 			fmt.Printf("Total Dependencies: %d \n", totalDeps)
 			fmt.Printf("Max Depth Of Dependencies: %d \n", maxDepth)
+			if splitTestOnly {
+				fmt.Printf("Test-only Dependencies: %d \n", testOnlyDeps)
+				fmt.Printf("Non-test Dependencies: %d \n", nonTestOnlyDeps)
+			}
 		}
 
 		if verbose {
 			fmt.Println("All dependencies:")
-			printDeps(getAllDeps(depGraph.DirectDepList, depGraph.TransDepList))
+			printDeps(allDeps)
+		}
+
+		if verbose && splitTestOnly {
+			fmt.Println("Test-only dependencies:")
+			printDeps(filterDepsByTestStatus(allDeps, testOnlySet, true))
+			fmt.Println("Non-test dependencies:")
+			printDeps(filterDepsByTestStatus(allDeps, testOnlySet, false))
 		}
 
 		// print the longest chain
@@ -77,15 +103,21 @@ var statsCmd = &cobra.Command{
 		if jsonOutput {
 			// create json
 			outputObj := struct {
-				DirectDeps int `json:"directDependencies"`
-				TransDeps  int `json:"transitiveDependencies"`
-				TotalDeps  int `json:"totalDependencies"`
-				MaxDepth   int `json:"maxDepthOfDependencies"`
+				DirectDeps   int  `json:"directDependencies"`
+				TransDeps    int  `json:"transitiveDependencies"`
+				TotalDeps    int  `json:"totalDependencies"`
+				MaxDepth     int  `json:"maxDepthOfDependencies"`
+				TestOnlyDeps *int `json:"testOnlyDependencies,omitempty"`
+				NonTestOnly  *int `json:"nonTestOnlyDependencies,omitempty"`
 			}{
 				DirectDeps: directDeps,
 				TransDeps:  transitiveDeps,
 				TotalDeps:  totalDeps,
 				MaxDepth:   maxDepth,
+			}
+			if splitTestOnly {
+				outputObj.TestOnlyDeps = &testOnlyDeps
+				outputObj.NonTestOnly = &nonTestOnlyDeps
 			}
 			outputRaw, err := json.MarshalIndent(outputObj, "", "\t")
 			if err != nil {
@@ -94,8 +126,13 @@ var statsCmd = &cobra.Command{
 			fmt.Print(string(outputRaw))
 		}
 		if csvOutput {
-			fmt.Println("Direct,Transitive,Total,MaxDepth")
-			fmt.Printf("%d,%d,%d,%d\n", directDeps, transitiveDeps, totalDeps, maxDepth)
+			if splitTestOnly {
+				fmt.Println("Direct,Transitive,Total,MaxDepth,TestOnly,NonTestOnly")
+				fmt.Printf("%d,%d,%d,%d,%d,%d\n", directDeps, transitiveDeps, totalDeps, maxDepth, testOnlyDeps, nonTestOnlyDeps)
+			} else {
+				fmt.Println("Direct,Transitive,Total,MaxDepth")
+				fmt.Printf("%d,%d,%d,%d\n", directDeps, transitiveDeps, totalDeps, maxDepth)
+			}
 		}
 		return nil
 	},
@@ -143,5 +180,6 @@ func init() {
 	statsCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Get additional details")
 	statsCmd.Flags().BoolVarP(&jsonOutput, "json", "j", false, "Get the output in JSON format")
 	statsCmd.Flags().BoolVarP(&csvOutput, "csv", "c", false, "Get the output in CSV format")
+	statsCmd.Flags().BoolVar(&splitTestOnly, "split-test-only", false, "Split dependency totals into test-only and non-test sections using `go mod why -m`")
 	statsCmd.Flags().StringSliceVarP(&mainModules, "mainModules", "m", []string{}, "Enter modules whose dependencies should be considered direct dependencies; defaults to the first module encountered in `go mod graph` output")
 }

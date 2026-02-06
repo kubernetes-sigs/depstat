@@ -17,7 +17,7 @@ fi
 workdir="$(mktemp -d)"
 trap 'rm -rf "${workdir}"' EXIT
 
-mkdir -p "${workdir}/"{root,a,b,c,d,e}
+mkdir -p "${workdir}/"{root,a,b,c,d,e,t}
 
 cat >"${workdir}/root/go.mod" <<'EOF'
 module example.com/root
@@ -35,6 +35,7 @@ replace (
 	example.com/c => ../c
 	example.com/d => ../d
 	example.com/e => ../e
+	example.com/t => ../t
 )
 EOF
 
@@ -80,11 +81,40 @@ module example.com/e
 go 1.22
 EOF
 
-for m in root a b c d e; do
+# Create Go source files with real imports so `go mod why -m` works
+cat >"${workdir}/root/dummy.go" <<'EOF'
+package root
+
+import (
+	_ "example.com/a"
+	_ "example.com/b"
+)
+EOF
+
+cat >"${workdir}/a/dummy.go" <<'EOF'
+package a
+
+import _ "example.com/c"
+EOF
+
+cat >"${workdir}/b/dummy.go" <<'EOF'
+package b
+
+import _ "example.com/d"
+EOF
+
+for m in c d e t; do
   cat >"${workdir}/${m}/dummy.go" <<EOF
 package ${m}
 EOF
 done
+
+# Add go.mod for test-only module t (will be required in a later commit)
+cat >"${workdir}/t/go.mod" <<'EOF'
+module example.com/t
+
+go 1.22
+EOF
 
 pushd "${workdir}/root" >/dev/null
 
@@ -168,6 +198,49 @@ echo "==> Testing diff-then-why loop (Prow presubmit pattern)..."
 for dep in $(jq -r '.added[]?' diff.json); do
   "${DEPSTAT_BIN}" why "${dep}" --json > /dev/null || true
 done
+
+echo "==> Preparing test-only dep fixture (adding test-only dependency t)..."
+# Add require for t in go.mod
+awk '
+/^require \($/ {print; print "\texample.com/t v0.0.0"; inreq=1; next}
+/^\)$/ && inreq {inreq=0}
+{print}
+' go.mod > go.mod.new
+mv go.mod.new go.mod
+
+# Add a _test.go file that imports t (making t a test-only dependency)
+cat > dummy_test.go <<'EOF'
+package root
+
+import (
+	"testing"
+
+	_ "example.com/t"
+)
+
+func TestDummy(t *testing.T) {}
+EOF
+
+git add -A
+git commit -q -m "add test-only dependency t"
+
+echo "==> Testing stats --split-test-only --json..."
+"${DEPSTAT_BIN}" stats --split-test-only --json > stats-split.json
+jq -e '.testOnlyDependencies >= 1 and .nonTestOnlyDependencies >= 1' stats-split.json >/dev/null \
+  || { echo "FAIL: stats --split-test-only did not report expected test/non-test counts"; exit 1; }
+
+echo "==> Testing diff --split-test-only --json..."
+"${DEPSTAT_BIN}" diff HEAD~1 HEAD --split-test-only --json > diff-split.json
+jq -e '.split != null' diff-split.json >/dev/null \
+  || { echo "FAIL: diff --split-test-only missing split section"; exit 1; }
+# t should appear in test-only added
+jq -e '.split.testOnly.added | any(. == "example.com/t")' diff-split.json >/dev/null \
+  || { echo "FAIL: split.testOnly.added should include example.com/t"; exit 1; }
+# t should NOT appear in non-test-only added
+if jq -e '.split.nonTestOnly.added | any(. == "example.com/t")' diff-split.json >/dev/null 2>&1; then
+  echo "FAIL: split.nonTestOnly.added should NOT include example.com/t"
+  exit 1
+fi
 
 popd >/dev/null
 
