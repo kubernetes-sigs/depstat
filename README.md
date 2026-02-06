@@ -1,95 +1,57 @@
 # depstat
 
-`depstat` is a command-line tool for analyzing dependencies of Go modules enabled projects. 
+`depstat` is a CLI for analyzing Go module dependency graphs, with a strong focus on Kubernetes dependency review workflows.
 
 ![depstat demo with k8s repo](./depstat-demo.gif)
 
-## Installation 
-To install depstat you can run
+## Installation
 
-```
+```bash
 go install github.com/kubernetes-sigs/depstat@latest
 ```
 
-## Usage
+## Quick Start
 
-- `depstat` can be used as a standalone command-line application. You can use `depstat` to produce metrics about the dependencies of your Go modules enabled project.
+```bash
+cd <your-go-module>
+depstat stats          # dependency counts and max depth
+depstat list           # sorted list of all dependencies
+depstat graph          # write graph.dot (render with: dot -Tsvg graph.dot -o graph.svg)
+depstat cycles         # detect dependency cycles
+depstat why <module>   # explain why a dependency is present
+```
 
-- Another common way to run `depstat` is in the CI pipeline of your project. This would help you analyze the dependency changes which come with PRs. 
-You can look at how this is done for the [kubernetes/kubernetes](https://github.com/kubernetes/kubernetes) repo using [prow](https://github.com/kubernetes/test-infra/tree/master/prow) [here](https://github.com/kubernetes/test-infra/blob/master/config/jobs/kubernetes/sig-arch/kubernetes-depstat.yaml). 
+## Kubernetes-Focused Documentation
+
+For real usage against `k8s.io/kubernetes` (including `MAIN_MODULES`, PR diff analysis, and archived dependency checks), see:
+
+- [docs/cli-kubernetes.md](docs/cli-kubernetes.md)
+
+This guide mirrors the patterns used in Kubernetes test-infra Prow jobs.
 
 ## Commands
 
-To see the list of commands `depstat` offers you can run `depstat help`. `depstat` currently supports the following commands:
+Run `depstat help` for full command help.
 
-### cycles
+- `depstat stats`: dependency counts and maximum depth (`--json`, `--csv`, `--verbose`, `--mainModules`, `--dir`)
+- `depstat list`: sorted list of all dependencies in the current module
+- `depstat graph`: write `graph.dot` (`--dep`, `--show-edge-types`, `--mainModules`)
+- `depstat cycles`: detect dependency cycles (`--json`, `--mainModules`)
+- `depstat why <dependency>`: explain why a dependency is present (`--json`, `--dot`, `--svg`, `--mainModules`, `--dir`)
+- `depstat diff <base-ref> [head-ref]`: compare dependency changes between git refs (`--json`, `--dot`, `--verbose`, `--mainModules`, `--dir`)
+- `depstat archived`: detect archived upstream GitHub repositories (`--json`, `--github-token-path`, `--dir`)
+- `depstat completion [bash|zsh|fish|powershell]`
 
-`depstat cycles` shows all the cycles present in the dependencies of the project.
-
-An example of a cycle in project dependenies is:
-`golang.org/x/net -> golang.org/x/crypto -> golang.org/x/net`
-
-`--json` prints the output of the cycles command in JSON format. For the above example the JSON output would look like this:
-```
-{
-  "cycles": [
-    [
-      "golang.org/x/net",
-      "golang.org/x/crypto",
-      "golang.org/x/net"
-    ]
-  ]
-}
-```
-
-### graph
-
-`depstat graph` will generate a `graph.dot` file which can be used with [Graphviz](https://graphviz.org)'s dot command to visualize the dependencies of a project.
-
-For example, after running `depstat graph`, an SVG can be created using:
-`twopi -Tsvg -o dag.svg graph.dot`
-
-By default, the graph would be created around the main module (first module in the `go mod graph` output), but you can choose to create a graph around a particular dependency using the `--dep` flag.
-
-### list
-
-`depstat list` shows a sorted list of all project dependencies. These include both direct and transitive dependencies.
-
-1. Direct dependencies: Dependencies that are directly used in the code of the project. These do not include standard go packages like `fmt`, etc. These are dependencies that appear on the right side of the main module in the `go mod graph` output.
-
-2. Transitive dependencies: These are dependencies that get imported because they are needed by some direct dependency of the project. These are dependencies that appear on the right side of a dependency that isn't the main module in the `go mod graph` output.
-
-### stats
-
-`depstat stats` will provide the following metrics about the dependencies of the project:
-
-1. Direct Dependencies: Total number of dependencies required by the [main module(s)](#main-module) directly.
-
-2. Transitive Dependencies: Total number of transitive dependencies (dependencies which are further needed by direct dependencies of the project).
-
-3. Total Dependencies: Total number of dependencies of the [main module(s)](#main-module).
-
-4. Max Depth of Dependencies: Length of the longest chain starting from the first [main module](#main-module); defaults to length from the first module encountered in "go mod graph" output.
-
-- The `--json` flag gives this output in a JSON format.
-- `--verbose` mode will help provide you with the list of all the dependencies and will also print the longest dependency chain.
-
-#### main module
-By default, the first module encountered in "go mod graph" output is treated as the main module by `depstat`. Depstat uses this main module to determine the direct and transitive dependencies. This behavior can be changed by specifying the main module manually using the `--mainModules` flag with the stats command. The flag takes a list of modules names, for example:
-
-```
-depstat stats --mainModules="k8s.io/kubernetes,k8s.io/kubectl"
-```
+The `--mainModules` / `-m` flag accepts a comma-separated list of module names to treat as "main" modules. This is essential for multi-module repositories like Kubernetes, where both the root module and all staging modules should be treated as first-party code rather than external dependencies. Without `-m`, depstat auto-detects a single main module from `go list -m`.
 
 ## Project Goals
-`depstat` is being developed under the code organization sub-project under [SIG Architecture](https://github.com/kubernetes/community/tree/master/sig-architecture). The goal is to make it easy to evaluate dependency updates to Kubernetes. This is done by running `depstat` as part of the Kubernetes CI pipeline.
+
+`depstat` is developed under SIG Architecture code organization efforts to make dependency changes easier to evaluate in Kubernetes CI.
 
 ## Community Contact Information
-You can reach the maintainers of this project at:
 
-[#k8s-code-organization](https://kubernetes.slack.com/messages/k8s-code-organization) on the [Kubernetes slack](http://slack.k8s.io).
+- [#k8s-code-organization](https://kubernetes.slack.com/messages/k8s-code-organization) on [Kubernetes Slack](http://slack.k8s.io)
 
-### Code of conduct
+## Code of Conduct
 
 Participation in the Kubernetes community is governed by the [Kubernetes Code of Conduct](code-of-conduct.md).
-
