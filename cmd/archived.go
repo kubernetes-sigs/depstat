@@ -94,6 +94,8 @@ var skipPrefixes = []string{
 	"bitbucket.org/",
 }
 
+var githubTokenPath string
+
 var archivedCmd = &cobra.Command{
 	Use:   "archived",
 	Short: "Check if any Go module dependencies are archived on GitHub",
@@ -105,8 +107,32 @@ actual GitHub repositories using the go-import meta tag protocol.
 
 Uses the GitHub GraphQL API for efficient batch checking (50 repos per query).
 
-Requires the GITHUB_TOKEN environment variable to be set.`,
+Requires a GitHub token via --github-token-path or the GITHUB_TOKEN environment variable.`,
 	RunE: runArchived,
+}
+
+// resolveGitHubToken reads the token from --github-token-path if set,
+// otherwise falls back to the GITHUB_TOKEN environment variable.
+func resolveGitHubToken() (string, error) {
+	if githubTokenPath != "" {
+		data, err := os.ReadFile(githubTokenPath)
+		if err != nil {
+			return "", fmt.Errorf("reading github token from %s: %w", githubTokenPath, err)
+		}
+		token := strings.TrimSpace(string(data))
+		if token == "" {
+			return "", fmt.Errorf("github token file %s is empty", githubTokenPath)
+		}
+		return token, nil
+	}
+
+	token := os.Getenv("GITHUB_TOKEN")
+	if token == "" {
+		return "", fmt.Errorf("github token is required: use --github-token-path or set GITHUB_TOKEN.\n" +
+			"Create a personal access token at https://github.com/settings/tokens\n" +
+			"and export it: export GITHUB_TOKEN=ghp_...")
+	}
+	return token, nil
 }
 
 func runArchived(cmd *cobra.Command, args []string) error {
@@ -114,11 +140,9 @@ func runArchived(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("archived does not take any arguments")
 	}
 
-	token := os.Getenv("GITHUB_TOKEN")
-	if token == "" {
-		return fmt.Errorf("GITHUB_TOKEN environment variable is required but not set.\n" +
-			"Create a personal access token at https://github.com/settings/tokens\n" +
-			"and export it: export GITHUB_TOKEN=ghp_...")
+	token, err := resolveGitHubToken()
+	if err != nil {
+		return err
 	}
 
 	// Phase 1: list all module dependencies
@@ -467,4 +491,5 @@ func init() {
 	rootCmd.AddCommand(archivedCmd)
 	archivedCmd.Flags().StringVarP(&dir, "dir", "d", "", "Directory containing the module to evaluate. Defaults to the current directory.")
 	archivedCmd.Flags().BoolVarP(&jsonOutput, "json", "j", false, "Get the output in JSON format")
+	archivedCmd.Flags().StringVar(&githubTokenPath, "github-token-path", "", "Path to a file containing the GitHub API token. If not set, uses GITHUB_TOKEN env var.")
 }
