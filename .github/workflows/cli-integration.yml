@@ -1,0 +1,71 @@
+name: CLI Integration
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fixture-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.x'
+
+      - name: Install jq
+        run: |
+          command -v jq >/dev/null 2>&1 || (sudo apt-get update && sudo apt-get install -y jq)
+
+      - name: Run deterministic fixture integration tests
+        run: make ci-fixture
+
+  kubernetes-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout depstat
+        uses: actions/checkout@v4
+        with:
+          path: depstat
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.x'
+
+      - name: Install jq
+        run: |
+          command -v jq >/dev/null 2>&1 || (sudo apt-get update && sudo apt-get install -y jq)
+
+      - name: Build depstat
+        working-directory: depstat
+        run: make build
+
+      - name: Checkout kubernetes
+        uses: actions/checkout@v4
+        with:
+          repository: kubernetes/kubernetes
+          path: kubernetes
+          fetch-depth: 2
+
+      - name: Run Kubernetes smoke tests
+        run: |
+          bash ./depstat/hack/ci/kubernetes-smoke.sh ./depstat/bin/depstat ./kubernetes ./depstat/_artifacts/kubernetes-smoke
+
+      - name: Upload smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kubernetes-depstat-smoke
+          path: depstat/_artifacts/kubernetes-smoke
