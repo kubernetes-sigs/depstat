@@ -54,6 +54,7 @@ depstat stats -m "${MAIN_MODULES}" --split-test-only --json > stats-split.json
 ```bash
 cd "${K8S_DIR}"
 depstat list
+depstat list --split-test-only
 ```
 
 ### `graph`

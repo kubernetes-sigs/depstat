@@ -229,6 +229,15 @@ echo "==> Testing stats --split-test-only --json..."
 jq -e '.testOnlyDependencies >= 1 and .nonTestOnlyDependencies >= 1' stats-split.json >/dev/null \
   || { echo "FAIL: stats --split-test-only did not report expected test/non-test counts"; exit 1; }
 
+echo "==> Testing list --split-test-only..."
+"${DEPSTAT_BIN}" list --split-test-only > list-split.txt
+grep -q 'Non-test dependencies' list-split.txt \
+  || { echo "FAIL: list --split-test-only missing non-test section"; exit 1; }
+grep -q 'Test-only dependencies' list-split.txt \
+  || { echo "FAIL: list --split-test-only missing test-only section"; exit 1; }
+grep -q 'example.com/t' list-split.txt \
+  || { echo "FAIL: list --split-test-only missing example.com/t"; exit 1; }
+
 echo "==> Testing diff --split-test-only --json..."
 "${DEPSTAT_BIN}" diff HEAD~1 HEAD --split-test-only --json > diff-split.json
 jq -e '.split != null' diff-split.json >/dev/null \

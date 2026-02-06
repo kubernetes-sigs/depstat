@@ -22,11 +22,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var listSplitTestOnly bool
+
 // analyzeDepsCmd represents the analyzeDeps command
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "Lists all project dependencies",
-	Long: `Gives a list of all the dependencies of the project. 
+	Long: `Gives a list of all the dependencies of the project.
 	These include both direct as well as transitive dependencies.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 
@@ -35,14 +37,28 @@ var listCmd = &cobra.Command{
 		}
 
 		depGraph := getDepInfo(nil)
-		fmt.Println("List of all dependencies:")
 		allDeps := getAllDeps(depGraph.DirectDepList, depGraph.TransDepList)
-		printDeps(allDeps)
+
+		if listSplitTestOnly {
+			testOnlySet, err := classifyTestDeps(allDeps)
+			if err != nil {
+				return fmt.Errorf("failed to classify dependencies: %w", err)
+			}
+			nonTest := filterDepsByTestStatus(allDeps, testOnlySet, false)
+			testOnly := filterDepsByTestStatus(allDeps, testOnlySet, true)
+			fmt.Printf("Non-test dependencies (%d):\n", len(nonTest))
+			printDeps(nonTest)
+			fmt.Printf("\nTest-only dependencies (%d):\n", len(testOnly))
+			printDeps(testOnly)
+		} else {
+			fmt.Println("List of all dependencies:")
+			printDeps(allDeps)
+		}
 		return nil
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(listCmd)
-
+	listCmd.Flags().BoolVar(&listSplitTestOnly, "split-test-only", false, "Split list into test-only and non-test sections (uses go mod why -m)")
 }

@@ -34,7 +34,7 @@ This guide mirrors the patterns used in Kubernetes test-infra Prow jobs.
 Run `depstat help` for full command help.
 
 - `depstat stats`: dependency counts and maximum depth (`--json`, `--csv`, `--verbose`, `--split-test-only`, `--mainModules`, `--dir`)
-- `depstat list`: sorted list of all dependencies in the current module
+- `depstat list`: sorted list of all dependencies in the current module (`--split-test-only`)
 - `depstat graph`: write `graph.dot` (`--dep`, `--show-edge-types`, `--mainModules`)
 - `depstat cycles`: detect dependency cycles (`--json`, `--mainModules`)
 - `depstat why <dependency>`: explain why a dependency is present (`--json`, `--dot`, `--svg`, `--mainModules`, `--dir`)
