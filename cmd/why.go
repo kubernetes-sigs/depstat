@@ -56,7 +56,10 @@ Examples:
   depstat why github.com/google/btree --json
 
   # Output as DOT for visualization
-  depstat why github.com/google/btree --dot | dot -Tsvg -o why.svg`,
+  depstat why github.com/google/btree --dot | dot -Tsvg -o why.svg
+
+  # Output as self-contained SVG
+  depstat why github.com/google/btree --svg > why.svg`,
 	Args: cobra.ExactArgs(1),
 	RunE: runWhy,
 }
@@ -128,6 +131,9 @@ func runWhy(cmd *cobra.Command, args []string) error {
 	}
 	if dotOutput {
 		return outputWhyDOT(result, depGraph)
+	}
+	if svgOutput {
+		return outputWhySVG(result)
 	}
 	return outputWhyText(result)
 }
@@ -265,5 +271,6 @@ func init() {
 	whyCmd.Flags().StringVarP(&dir, "dir", "d", "", "Directory containing the module to evaluate")
 	whyCmd.Flags().BoolVarP(&jsonOutput, "json", "j", false, "Output in JSON format")
 	whyCmd.Flags().BoolVarP(&dotOutput, "dot", "", false, "Output in DOT format for Graphviz")
+	whyCmd.Flags().BoolVarP(&svgOutput, "svg", "s", false, "Output as self-contained SVG diagram")
 	whyCmd.Flags().StringSliceVarP(&mainModules, "mainModules", "m", []string{}, "Specify main modules")
 }

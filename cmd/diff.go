@@ -28,6 +28,7 @@ import (
 )
 
 var dotOutput bool
+var svgOutput bool
 
 // DiffStats holds the stats for a single analysis
 type DiffStats struct {
