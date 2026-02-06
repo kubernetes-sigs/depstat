@@ -44,6 +44,7 @@ echo "${MAIN_MODULES}"
 depstat stats -m "${MAIN_MODULES}" -v
 depstat stats -m "${MAIN_MODULES}" --json > stats.json
 depstat stats -m "${MAIN_MODULES}" --csv > stats.csv
+depstat stats -m "${MAIN_MODULES}" --split-test-only --json > stats-split.json
 ```
 
 ### `list`
@@ -94,6 +95,13 @@ depstat diff "${BASE_SHA}" HEAD -m "${MAIN_MODULES}" -v
 depstat diff "${BASE_SHA}" HEAD -m "${MAIN_MODULES}" --json > diff.json
 depstat diff "${BASE_SHA}" HEAD -m "${MAIN_MODULES}" --dot > diff.dot
 dot -Tsvg diff.dot -o diff.svg
+```
+
+Split output by test-only vs non-test dependency changes (uses `go mod why -m` to classify):
+
+```bash
+depstat diff "${BASE_SHA}" HEAD -m "${MAIN_MODULES}" --split-test-only --json > diff-split.json
+jq '.split.testOnly, .split.nonTestOnly' diff-split.json
 ```
 
 PR-style usage (matches Prow pattern):
