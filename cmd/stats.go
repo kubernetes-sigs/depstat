@@ -49,8 +49,11 @@ var statsCmd = &cobra.Command{
 		}
 
 		// get the longest chain
-		var temp Chain
-		longestChain := getLongestChain(depGraph.MainModules[0], depGraph.Graph, temp, map[string]Chain{})
+		var longestChain Chain
+		if len(depGraph.MainModules) > 0 {
+			var temp Chain
+			longestChain = getLongestChain(depGraph.MainModules[0], depGraph.Graph, temp, map[string]Chain{})
+		}
 		// get values
 		maxDepth := len(longestChain)
 		directDeps := len(depGraph.DirectDepList)
