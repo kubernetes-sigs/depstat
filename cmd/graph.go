@@ -17,6 +17,7 @@ limitations under the License.
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -27,6 +28,9 @@ import (
 
 var dep string
 var showEdgeTypes bool
+var graphDotOutput bool
+var graphJSONOutput bool
+var graphOutputPath string
 
 var graphCmd = &cobra.Command{
 	Use:   "graph",
@@ -39,6 +43,9 @@ var graphCmd = &cobra.Command{
 	- Direct edges (solid blue): from main module(s) to their direct dependencies
 	- Transitive edges (dashed gray): dependencies of dependencies`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if graphDotOutput && graphJSONOutput {
+			return fmt.Errorf("--dot and --json are mutually exclusive")
+		}
 		overview := getDepInfo(mainModules)
 		// strict ensures that there is only one edge between two vertices
 		// overlap = false ensures the vertices don't overlap
@@ -54,12 +61,49 @@ var graphCmd = &cobra.Command{
 			fileContents += getFileContentsForAllDepsWithTypes(overview, showEdgeTypes)
 		}
 		fileContents += "}"
+		if graphJSONOutput {
+			edges := getEdges(overview.Graph)
+			outputObj := struct {
+				MainModules         []string            `json:"mainModules"`
+				DirectDependencies  []string            `json:"directDependencies"`
+				TransDependencies   []string            `json:"transitiveDependencies"`
+				Graph               map[string][]string `json:"graph"`
+				Edges               []string            `json:"edges"`
+				FocusedDependency   string              `json:"focusedDependency,omitempty"`
+				ShowEdgeTypes       bool                `json:"showEdgeTypes"`
+				DirectCount         int                 `json:"directDependencyCount"`
+				TransitiveCount     int                 `json:"transitiveDependencyCount"`
+				TotalDependencyEdge int                 `json:"edgeCount"`
+			}{
+				MainModules:         overview.MainModules,
+				DirectDependencies:  overview.DirectDepList,
+				TransDependencies:   overview.TransDepList,
+				Graph:               overview.Graph,
+				Edges:               edges,
+				FocusedDependency:   dep,
+				ShowEdgeTypes:       showEdgeTypes,
+				DirectCount:         len(overview.DirectDepList),
+				TransitiveCount:     len(overview.TransDepList),
+				TotalDependencyEdge: len(edges),
+			}
+			out, err := json.MarshalIndent(outputObj, "", "\t")
+			if err != nil {
+				return err
+			}
+			fmt.Print(string(out))
+			return nil
+		}
+		if graphDotOutput {
+			fmt.Print(fileContents)
+			return nil
+		}
+
 		fileContentsByte := []byte(fileContents)
-		err := os.WriteFile("./graph.dot", fileContentsByte, 0644)
+		err := os.WriteFile(graphOutputPath, fileContentsByte, 0644)
 		if err != nil {
 			return err
 		}
-		fmt.Println("\nCreated graph.dot file!")
+		fmt.Printf("\nCreated %s file!\n", graphOutputPath)
 		return nil
 	},
 }
@@ -179,5 +223,8 @@ func init() {
 	rootCmd.AddCommand(graphCmd)
 	graphCmd.Flags().StringVarP(&dep, "dep", "d", "", "Specify dependency to create a graph around")
 	graphCmd.Flags().BoolVar(&showEdgeTypes, "show-edge-types", false, "Distinguish direct vs transitive edges with colors/styles")
+	graphCmd.Flags().BoolVar(&graphDotOutput, "dot", false, "Output DOT graph to stdout")
+	graphCmd.Flags().BoolVarP(&graphJSONOutput, "json", "j", false, "Output graph data in JSON format")
+	graphCmd.Flags().StringVar(&graphOutputPath, "output", "graph.dot", "Path to DOT output file when not using --dot or --json")
 	graphCmd.Flags().StringSliceVarP(&mainModules, "mainModules", "m", []string{}, "Specify main modules")
 }

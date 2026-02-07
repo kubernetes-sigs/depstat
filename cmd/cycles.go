@@ -299,6 +299,7 @@ func containsInt(slice []int, val int) bool {
 
 func init() {
 	rootCmd.AddCommand(cyclesCmd)
+	cyclesCmd.Flags().StringVarP(&dir, "dir", "d", "", "Directory containing the module to evaluate. Defaults to the current directory.")
 	cyclesCmd.Flags().BoolVarP(&jsonOutputCycles, "json", "j", false, "Get the output in JSON format")
 	cyclesCmd.Flags().StringSliceVarP(&mainModules, "mainModules", "m", []string{}, "Enter modules whose dependencies should be considered direct dependencies; defaults to the first module encountered in `go mod graph` output")
 }
