@@ -17,12 +17,15 @@ limitations under the License.
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
+	"sort"
 
 	"github.com/spf13/cobra"
 )
 
 var listSplitTestOnly bool
+var listJSONOutput bool
 
 // analyzeDepsCmd represents the analyzeDeps command
 var listCmd = &cobra.Command{
@@ -36,8 +39,9 @@ var listCmd = &cobra.Command{
 			return fmt.Errorf("list does not take any arguments")
 		}
 
-		depGraph := getDepInfo(nil)
+		depGraph := getDepInfo(mainModules)
 		allDeps := getAllDeps(depGraph.DirectDepList, depGraph.TransDepList)
+		sort.Strings(allDeps)
 
 		if listSplitTestOnly {
 			testOnlySet, err := classifyTestDeps(allDeps)
@@ -46,11 +50,55 @@ var listCmd = &cobra.Command{
 			}
 			nonTest := filterDepsByTestStatus(allDeps, testOnlySet, false)
 			testOnly := filterDepsByTestStatus(allDeps, testOnlySet, true)
+			sort.Strings(nonTest)
+			sort.Strings(testOnly)
+			if listJSONOutput {
+				outputObj := struct {
+					All       []string `json:"allDependencies"`
+					NonTest   []string `json:"nonTestDependencies"`
+					TestOnly  []string `json:"testOnlyDependencies"`
+					MainMods  []string `json:"mainModules"`
+					Total     int      `json:"totalDependencies"`
+					NonTestN  int      `json:"nonTestCount"`
+					TestOnlyN int      `json:"testOnlyCount"`
+				}{
+					All:       allDeps,
+					NonTest:   nonTest,
+					TestOnly:  testOnly,
+					MainMods:  depGraph.MainModules,
+					Total:     len(allDeps),
+					NonTestN:  len(nonTest),
+					TestOnlyN: len(testOnly),
+				}
+				outputRaw, err := json.MarshalIndent(outputObj, "", "\t")
+				if err != nil {
+					return err
+				}
+				fmt.Print(string(outputRaw))
+				return nil
+			}
 			fmt.Printf("Non-test dependencies (%d):\n", len(nonTest))
 			printDeps(nonTest)
 			fmt.Printf("\nTest-only dependencies (%d):\n", len(testOnly))
 			printDeps(testOnly)
 		} else {
+			if listJSONOutput {
+				outputObj := struct {
+					All      []string `json:"allDependencies"`
+					MainMods []string `json:"mainModules"`
+					Total    int      `json:"totalDependencies"`
+				}{
+					All:      allDeps,
+					MainMods: depGraph.MainModules,
+					Total:    len(allDeps),
+				}
+				outputRaw, err := json.MarshalIndent(outputObj, "", "\t")
+				if err != nil {
+					return err
+				}
+				fmt.Print(string(outputRaw))
+				return nil
+			}
 			fmt.Println("List of all dependencies:")
 			printDeps(allDeps)
 		}
@@ -60,5 +108,8 @@ var listCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(listCmd)
+	listCmd.Flags().StringVarP(&dir, "dir", "d", "", "Directory containing the module to evaluate. Defaults to the current directory.")
+	listCmd.Flags().StringSliceVarP(&mainModules, "mainModules", "m", []string{}, "Specify main modules")
+	listCmd.Flags().BoolVarP(&listJSONOutput, "json", "j", false, "Get the output in JSON format")
 	listCmd.Flags().BoolVar(&listSplitTestOnly, "split-test-only", false, "Split list into test-only and non-test sections (uses go mod why -m)")
 }

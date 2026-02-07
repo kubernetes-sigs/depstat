@@ -74,6 +74,7 @@ type graphQLError struct {
 }
 
 var githubURLRe = regexp.MustCompile(`https?://github\.com/([^/\s]+)/([^/\s"'<>]+)`)
+var goImportMetaRe = regexp.MustCompile(`<meta\s+name=["']go-import["']\s+content=["']([^"']+)["']`)
 
 // knownGitHubMirrors maps vanity URL prefixes to GitHub owner/repo.
 // These are domains whose go-import meta tags don't point to GitHub
@@ -381,20 +382,54 @@ func resolveOneVanityURL(client *http.Client, modPath string) string {
 		return ""
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return ""
+	}
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20)) // 1MB limit
 	if err != nil {
 		return ""
 	}
+	return resolveRepoFromGoImport(string(body), modPath)
+}
 
-	// Collapse whitespace to handle multiline meta tags
-	collapsed := regexp.MustCompile(`\s+`).ReplaceAllString(string(body), " ")
+func resolveRepoFromGoImport(body string, modPath string) string {
+	// Collapse whitespace to handle multiline tags.
+	collapsed := regexp.MustCompile(`\s+`).ReplaceAllString(body, " ")
+	matches := goImportMetaRe.FindAllStringSubmatch(collapsed, -1)
 
-	match := githubURLRe.FindStringSubmatch(collapsed)
+	bestPrefix := ""
+	bestRepo := ""
+	for _, m := range matches {
+		if len(m) < 2 {
+			continue
+		}
+		fields := strings.Fields(m[1])
+		if len(fields) != 3 {
+			continue
+		}
+		prefix, vcs, repoRoot := fields[0], fields[1], fields[2]
+		if vcs != "git" || !strings.HasPrefix(modPath, prefix) {
+			continue
+		}
+		repo := extractGitHubRepoFromURL(repoRoot)
+		if repo == "" {
+			continue
+		}
+		// Prefer the most specific prefix.
+		if len(prefix) > len(bestPrefix) {
+			bestPrefix = prefix
+			bestRepo = repo
+		}
+	}
+	return bestRepo
+}
+
+func extractGitHubRepoFromURL(raw string) string {
+	match := githubURLRe.FindStringSubmatch(raw)
 	if match == nil {
 		return ""
 	}
-
 	owner := match[1]
 	repo := match[2]
 	repo = strings.TrimSuffix(repo, ".git")
@@ -461,6 +496,11 @@ func graphQLBatchCheck(repos []string, token string) (archived []string, warning
 		return nil, warnings
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
+		warnings = append(warnings, fmt.Sprintf("GraphQL request failed: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(body))))
+		return nil, warnings
+	}
 
 	var result graphQLResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {

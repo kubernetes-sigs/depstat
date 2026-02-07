@@ -34,9 +34,9 @@ This guide mirrors the patterns used in Kubernetes test-infra Prow jobs.
 Run `depstat help` for full command help.
 
 - `depstat stats`: dependency counts and maximum depth (`--json`, `--csv`, `--verbose`, `--split-test-only`, `--mainModules`, `--dir`)
-- `depstat list`: sorted list of all dependencies in the current module (`--split-test-only`)
-- `depstat graph`: write `graph.dot` (`--dep`, `--show-edge-types`, `--mainModules`)
-- `depstat cycles`: detect dependency cycles (`--json`, `--mainModules`)
+- `depstat list`: sorted list of all dependencies in the current module (`--json`, `--split-test-only`, `--mainModules`, `--dir`)
+- `depstat graph`: dependency graph (`--dot`, `--json`, `--output`, `--dep`, `--show-edge-types`, `--mainModules`)
+- `depstat cycles`: detect dependency cycles (`--json`, `--mainModules`, `--dir`)
 - `depstat why <dependency>`: explain why a dependency is present (`--json`, `--dot`, `--svg`, `--mainModules`, `--dir`)
 - `depstat diff <base-ref> [head-ref]`: compare dependency changes between git refs (`--json`, `--dot`, `--verbose`, `--split-test-only`, `--vendor`, `--vendor-files`, `--mainModules`, `--dir`)
 - `depstat archived`: detect archived upstream GitHub repositories (`--json`, `--github-token-path`, `--dir`)
