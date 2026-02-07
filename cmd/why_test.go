@@ -10,9 +10,9 @@ import (
 
 func TestFindAllPathsHonorsLimit(t *testing.T) {
 	graph := map[string][]string{
-		"A": []string{"B", "C"},
-		"B": []string{"D"},
-		"C": []string{"D"},
+		"A": {"B", "C"},
+		"B": {"D"},
+		"C": {"D"},
 	}
 	var out [][]string
 	findAllPaths("A", "D", graph, []string{}, map[string]bool{}, &out, 1)
