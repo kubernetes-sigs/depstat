@@ -19,6 +19,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"sort"
@@ -153,7 +154,17 @@ func runDiff(cmd *cobra.Command, args []string) error {
 	if dirty, err := gitWorkingTreeDirty(); err != nil {
 		return fmt.Errorf("failed to check working tree status: %w", err)
 	} else if dirty {
-		return fmt.Errorf("working tree is dirty; commit or stash changes before running diff")
+		stashed, stashErr := gitStashPush()
+		if stashErr != nil {
+			return fmt.Errorf("working tree is dirty and automatic stash failed: %w", stashErr)
+		}
+		if stashed {
+			defer func() {
+				if popErr := gitStashPop(); popErr != nil {
+					fmt.Fprintf(os.Stderr, "warning: failed to restore stashed changes: %v\n", popErr)
+				}
+			}()
+		}
 	}
 
 	// Resolve symbolic refs (like HEAD, HEAD~1) to SHAs before any
@@ -429,7 +440,7 @@ func gitCurrentRefState() (string, error) {
 }
 
 func gitWorkingTreeDirty() (bool, error) {
-	cmd := exec.Command("git", "status", "--porcelain")
+	cmd := exec.Command("git", "status", "--porcelain", "--untracked-files=no")
 	if dir != "" {
 		cmd.Dir = dir
 	}
@@ -438,6 +449,43 @@ func gitWorkingTreeDirty() (bool, error) {
 		return false, err
 	}
 	return strings.TrimSpace(string(out)) != "", nil
+}
+
+func gitStashRef() string {
+	cmd := exec.Command("git", "rev-parse", "-q", "--verify", "refs/stash")
+	if dir != "" {
+		cmd.Dir = dir
+	}
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func gitStashPush() (bool, error) {
+	before := gitStashRef()
+	cmd := exec.Command("git", "stash", "push", "-m", "depstat diff temporary stash")
+	if dir != "" {
+		cmd.Dir = dir
+	}
+	cmd.Stdout = io.Discard
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return false, err
+	}
+	after := gitStashRef()
+	return before != after && after != "", nil
+}
+
+func gitStashPop() error {
+	cmd := exec.Command("git", "stash", "pop", "-q")
+	if dir != "" {
+		cmd.Dir = dir
+	}
+	cmd.Stdout = io.Discard
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 func gitCheckout(ref string) error {

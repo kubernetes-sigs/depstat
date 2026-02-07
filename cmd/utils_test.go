@@ -703,7 +703,7 @@ A C@v1.0.0`, nil)
 
 func Test_computeStats_noMainModule(t *testing.T) {
 	stats := computeStats(&DependencyOverview{
-		Graph:         map[string][]string{"A": []string{"B"}},
+		Graph:         map[string][]string{"A": {"B"}},
 		DirectDepList: []string{"B"},
 		TransDepList:  []string{},
 		MainModules:   nil,
