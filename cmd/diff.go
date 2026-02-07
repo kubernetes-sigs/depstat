@@ -591,12 +591,50 @@ func printSplitSection(title string, sec DiffFilteredSection) {
 
 func outputDOT(result DiffResult, baseGraph, headGraph *DependencyOverview) error {
 	fmt.Println("strict digraph {")
-	fmt.Println("graph [overlap=false, label=\"Dependency Diff: " + result.BaseRef + ".." + result.HeadRef + "\", labelloc=t];")
-	fmt.Println("node [shape=box, style=filled, fillcolor=white];")
+	fmt.Println("graph [overlap=false, rankdir=LR, label=\"Dependency Diff: " + result.BaseRef + ".." + result.HeadRef + "\", labelloc=t, fontsize=16];")
+	fmt.Println("node [shape=box, style=filled, fillcolor=white, fontsize=11];")
+	fmt.Println("edge [fontsize=9];")
 	fmt.Println()
 
+	// Build version change lookup
+	versionChangeMap := make(map[string]VersionChange)
+	for _, vc := range result.VersionChanges {
+		versionChangeMap[vc.Path] = vc
+	}
+
+	// Collect all diff-relevant nodes BEFORE transitive reduction so
+	// the reduction only considers paths through nodes visible in the diff.
+	diffNodes := make(map[string]bool)
+	for _, dep := range result.Added {
+		diffNodes[dep] = true
+	}
+	for _, dep := range result.Removed {
+		diffNodes[dep] = true
+	}
+	for _, vc := range result.VersionChanges {
+		diffNodes[vc.Path] = true
+	}
+	for _, edge := range result.EdgesAdded {
+		parts := strings.Split(edge, " -> ")
+		if len(parts) == 2 {
+			diffNodes[parts[0]] = true
+			diffNodes[parts[1]] = true
+		}
+	}
+	for _, edge := range result.EdgesRemoved {
+		parts := strings.Split(edge, " -> ")
+		if len(parts) == 2 {
+			diffNodes[parts[0]] = true
+			diffNodes[parts[1]] = true
+		}
+	}
+
+	// Transitive reduction within the diff-relevant subgraph.
+	edgesAdded := transitiveReduceEdges(result.EdgesAdded, headGraph.Graph, diffNodes)
+	edgesRemoved := transitiveReduceEdges(result.EdgesRemoved, baseGraph.Graph, diffNodes)
+
 	// Collect all nodes involved in changes
-	changedNodes := make(map[string]string) // node -> status (added/removed/unchanged)
+	changedNodes := make(map[string]string) // node -> status
 
 	for _, dep := range result.Added {
 		changedNodes[dep] = "added"
@@ -604,16 +642,13 @@ func outputDOT(result DiffResult, baseGraph, headGraph *DependencyOverview) erro
 	for _, dep := range result.Removed {
 		changedNodes[dep] = "removed"
 	}
-
-	// Add version-changed nodes
 	for _, vc := range result.VersionChanges {
 		if changedNodes[vc.Path] == "" {
 			changedNodes[vc.Path] = "changed"
 		}
 	}
 
-	// Add nodes involved in edge changes
-	for _, edge := range result.EdgesAdded {
+	for _, edge := range edgesAdded {
 		parts := strings.Split(edge, " -> ")
 		if len(parts) == 2 {
 			if changedNodes[parts[0]] == "" {
@@ -624,7 +659,7 @@ func outputDOT(result DiffResult, baseGraph, headGraph *DependencyOverview) erro
 			}
 		}
 	}
-	for _, edge := range result.EdgesRemoved {
+	for _, edge := range edgesRemoved {
 		parts := strings.Split(edge, " -> ")
 		if len(parts) == 2 {
 			if changedNodes[parts[0]] == "" {
@@ -636,11 +671,81 @@ func outputDOT(result DiffResult, baseGraph, headGraph *DependencyOverview) erro
 		}
 	}
 
+	// Restore main modules that were pruned by transitive reduction.
+	// For each main module that had diff edges but lost them all, add back
+	// a single thin edge to its most direct changed dependency.
+	reducedEdgeSet := make(map[string]bool)
+	for _, e := range edgesAdded {
+		reducedEdgeSet[e] = true
+	}
+	for _, e := range edgesRemoved {
+		reducedEdgeSet[e] = true
+	}
+
+	var mainModuleEdges []string
+	isMainModule := make(map[string]bool)
+	for _, m := range baseGraph.MainModules {
+		isMainModule[m] = true
+	}
+	for _, m := range headGraph.MainModules {
+		isMainModule[m] = true
+	}
+
+	for _, origEdge := range result.EdgesAdded {
+		parts := strings.Split(origEdge, " -> ")
+		if len(parts) != 2 || !isMainModule[parts[0]] {
+			continue
+		}
+		if changedNodes[parts[0]] != "" {
+			continue // already in the graph
+		}
+		// Find the first changed dep this main module connects to
+		target := parts[1]
+		if changedNodes[target] != "" {
+			changedNodes[parts[0]] = "main"
+			mainModuleEdges = append(mainModuleEdges, origEdge)
+		}
+	}
+	for _, origEdge := range result.EdgesRemoved {
+		parts := strings.Split(origEdge, " -> ")
+		if len(parts) != 2 || !isMainModule[parts[0]] {
+			continue
+		}
+		if changedNodes[parts[0]] != "" {
+			continue
+		}
+		target := parts[1]
+		if changedNodes[target] != "" {
+			changedNodes[parts[0]] = "main"
+			mainModuleEdges = append(mainModuleEdges, origEdge)
+		}
+	}
+
+	// Deduplicate: keep only one edge per main module
+	seenMain := make(map[string]bool)
+	var dedupedMainEdges []string
+	for _, e := range mainModuleEdges {
+		parts := strings.Split(e, " -> ")
+		if !seenMain[parts[0]] {
+			seenMain[parts[0]] = true
+			dedupedMainEdges = append(dedupedMainEdges, e)
+		}
+	}
+	mainModuleEdges = dedupedMainEdges
+
 	// Output nodes with colors
 	fmt.Println("// Nodes")
-	for node, status := range changedNodes {
+	var nodeNames []string
+	for n := range changedNodes {
+		nodeNames = append(nodeNames, n)
+	}
+	sort.Strings(nodeNames)
+
+	for _, node := range nodeNames {
+		status := changedNodes[node]
 		color := "white"
 		style := "filled"
+		label := node
 		switch status {
 		case "added":
 			color = "#ccffcc" // green
@@ -649,32 +754,138 @@ func outputDOT(result DiffResult, baseGraph, headGraph *DependencyOverview) erro
 			style = "filled,dashed"
 		case "changed":
 			color = "#ffffcc" // yellow
+			if vc, ok := versionChangeMap[node]; ok {
+				label = fmt.Sprintf("%s\\n%s → %s", node, vc.Before, vc.After)
+			}
+		case "main":
+			color = "#e8e8e8" // light gray
 		}
-		fmt.Printf("\"%s\" [fillcolor=\"%s\", style=\"%s\"];\n", node, color, style)
+		fmt.Printf("\"%s\" [fillcolor=\"%s\", style=\"%s\", label=\"%s\"];\n", node, color, style, label)
 	}
 	fmt.Println()
 
-	// Output removed edges
-	fmt.Println("// Removed edges")
-	for _, edge := range result.EdgesRemoved {
-		parts := strings.Split(edge, " -> ")
-		if len(parts) == 2 {
-			fmt.Printf("\"%s\" -> \"%s\" [color=\"red\", style=\"dashed\", label=\"REMOVED\"];\n", parts[0], parts[1])
+	// Output main module edges (thin, gray)
+	if len(mainModuleEdges) > 0 {
+		fmt.Println("// Main module edges")
+		for _, edge := range mainModuleEdges {
+			parts := strings.Split(edge, " -> ")
+			if len(parts) == 2 {
+				fmt.Printf("\"%s\" -> \"%s\" [color=\"gray\", style=\"dotted\"];\n", parts[0], parts[1])
+			}
 		}
+		fmt.Println()
 	}
-	fmt.Println()
 
-	// Output added edges
-	fmt.Println("// Added edges")
-	for _, edge := range result.EdgesAdded {
-		parts := strings.Split(edge, " -> ")
-		if len(parts) == 2 {
-			fmt.Printf("\"%s\" -> \"%s\" [color=\"green\", style=\"bold\", label=\"ADDED\"];\n", parts[0], parts[1])
+	// Output reduced edges
+	if len(edgesRemoved) > 0 {
+		fmt.Println("// Removed edges")
+		for _, edge := range edgesRemoved {
+			parts := strings.Split(edge, " -> ")
+			if len(parts) == 2 {
+				fmt.Printf("\"%s\" -> \"%s\" [color=\"red\", style=\"dashed\"];\n", parts[0], parts[1])
+			}
+		}
+		fmt.Println()
+	}
+
+	if len(edgesAdded) > 0 {
+		fmt.Println("// Added edges")
+		for _, edge := range edgesAdded {
+			parts := strings.Split(edge, " -> ")
+			if len(parts) == 2 {
+				fmt.Printf("\"%s\" -> \"%s\" [color=\"green\", style=\"bold\"];\n", parts[0], parts[1])
+			}
 		}
 	}
 
 	fmt.Println("}")
 	return nil
+}
+
+// transitiveReduceEdges removes diff edges that are implied by longer paths
+// through the diff-relevant subgraph, but only when the alternative path
+// contains at least one other diff edge. This prevents genuinely new edges
+// (like A newly depending on B) from being pruned via pre-existing paths.
+func transitiveReduceEdges(diffEdges []string, fullGraph map[string][]string, diffNodes map[string]bool) []string {
+	diffEdgeSet := make(map[string]bool)
+	for _, e := range diffEdges {
+		diffEdgeSet[e] = true
+	}
+
+	// Project the full graph onto just the diff-relevant nodes
+	subGraph := make(map[string][]string)
+	for node := range diffNodes {
+		for _, neighbor := range fullGraph[node] {
+			if diffNodes[neighbor] {
+				subGraph[node] = append(subGraph[node], neighbor)
+			}
+		}
+	}
+
+	var reduced []string
+	for _, edge := range diffEdges {
+		parts := strings.Split(edge, " -> ")
+		if len(parts) != 2 {
+			continue
+		}
+		if !reachableViaDiffPath(parts[0], parts[1], subGraph, diffEdgeSet) {
+			reduced = append(reduced, edge)
+		}
+	}
+	return reduced
+}
+
+// reachableViaDiffPath checks if dst is reachable from src via a path of
+// length > 1 (excluding the direct src→dst edge) where at least one
+// intermediate edge is itself a diff edge.
+func reachableViaDiffPath(src, dst string, graph map[string][]string, diffEdgeSet map[string]bool) bool {
+	type state struct {
+		node    string
+		hasDiff bool
+	}
+	reachedWithDiff := make(map[string]bool)
+	reachedNoDiff := make(map[string]bool)
+	queue := []state{}
+
+	for _, n := range graph[src] {
+		if n == dst {
+			continue
+		}
+		hasDiff := diffEdgeSet[src+" -> "+n]
+		if hasDiff {
+			if !reachedWithDiff[n] {
+				reachedWithDiff[n] = true
+				queue = append(queue, state{n, true})
+			}
+		} else if !reachedNoDiff[n] {
+			reachedNoDiff[n] = true
+			queue = append(queue, state{n, false})
+		}
+	}
+
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+
+		if cur.node == dst && cur.hasDiff {
+			return true
+		}
+
+		for _, n := range graph[cur.node] {
+			hasDiff := cur.hasDiff || diffEdgeSet[cur.node+" -> "+n]
+			if hasDiff {
+				if !reachedWithDiff[n] {
+					reachedWithDiff[n] = true
+					queue = append(queue, state{n, true})
+				}
+			} else if !reachedNoDiff[n] {
+				reachedNoDiff[n] = true
+				queue = append(queue, state{n, false})
+			}
+		}
+	}
+
+	return false
 }
 
 // computeVersionChanges returns modules present in both base and head
