@@ -38,7 +38,13 @@ type WhyResult struct {
 	Paths       []WhyPath `json:"paths"`
 	DirectDeps  []string  `json:"directDependents"` // modules that directly depend on target
 	MainModules []string  `json:"mainModules"`
+	Truncated   bool      `json:"truncated,omitempty"`
+	TotalPaths  int       `json:"totalPaths,omitempty"`
 }
+
+const whyDefaultTextPaths = 20
+
+var whyMaxPaths int
 
 var whyCmd = &cobra.Command{
 	Use:   "why <dependency>",
@@ -103,28 +109,31 @@ func runWhy(cmd *cobra.Command, args []string) error {
 	}
 	sort.Strings(result.DirectDeps)
 
-	// Find all paths from main modules to target
+	// Find all paths from main modules to target.
+	var allPaths [][]string
 	for _, mainMod := range depGraph.MainModules {
-		paths := findAllPaths(mainMod, target, depGraph.Graph, []string{}, make(map[string]bool))
-		for _, path := range paths {
-			isDirect := len(path) == 2 && contains(depGraph.MainModules, path[0])
-			result.Paths = append(result.Paths, WhyPath{
-				Path:   path,
-				Direct: isDirect,
-			})
+		findAllPaths(mainMod, target, depGraph.Graph, []string{}, make(map[string]bool), &allPaths, whyMaxPaths)
+		if whyMaxPaths > 0 && len(allPaths) >= whyMaxPaths {
+			result.Truncated = true
+			break
 		}
+	}
+	for _, path := range allPaths {
+		isDirect := len(path) == 2 && contains(depGraph.MainModules, path[0])
+		result.Paths = append(result.Paths, WhyPath{
+			Path:   path,
+			Direct: isDirect,
+		})
 	}
 
 	// Sort paths by length (shortest first)
 	sort.Slice(result.Paths, func(i, j int) bool {
-		return len(result.Paths[i].Path) < len(result.Paths[j].Path)
+		if len(result.Paths[i].Path) != len(result.Paths[j].Path) {
+			return len(result.Paths[i].Path) < len(result.Paths[j].Path)
+		}
+		return strings.Join(result.Paths[i].Path, " -> ") < strings.Join(result.Paths[j].Path, " -> ")
 	})
-
-	// Limit paths to avoid overwhelming output
-	maxPaths := 20
-	if len(result.Paths) > maxPaths {
-		result.Paths = result.Paths[:maxPaths]
-	}
+	result.TotalPaths = len(result.Paths)
 
 	if jsonOutput {
 		return outputWhyJSON(result)
@@ -138,35 +147,35 @@ func runWhy(cmd *cobra.Command, args []string) error {
 	return outputWhyText(result)
 }
 
-// findAllPaths finds all paths from start to target using DFS
-func findAllPaths(start, target string, graph map[string][]string, currentPath []string, visited map[string]bool) [][]string {
+// findAllPaths finds paths from start to target using DFS and appends to out.
+// If maxPaths > 0, search stops once out reaches maxPaths.
+func findAllPaths(start, target string, graph map[string][]string, currentPath []string, visited map[string]bool, out *[][]string, maxPaths int) {
+	if maxPaths > 0 && len(*out) >= maxPaths {
+		return
+	}
+
 	currentPath = append(currentPath, start)
 
 	if start == target {
-		// Found the target, return a copy of the path
+		// Found the target, append a copy of the path.
 		pathCopy := make([]string, len(currentPath))
 		copy(pathCopy, currentPath)
-		return [][]string{pathCopy}
+		*out = append(*out, pathCopy)
+		return
 	}
 
 	if visited[start] {
-		return nil
+		return
 	}
 	visited[start] = true
 	defer func() { visited[start] = false }()
 
-	var allPaths [][]string
 	for _, next := range graph[start] {
-		paths := findAllPaths(next, target, graph, currentPath, visited)
-		allPaths = append(allPaths, paths...)
-
-		// Limit search to avoid exponential blowup
-		if len(allPaths) > 100 {
-			break
+		findAllPaths(next, target, graph, currentPath, visited, out, maxPaths)
+		if maxPaths > 0 && len(*out) >= maxPaths {
+			return
 		}
 	}
-
-	return allPaths
 }
 
 func outputWhyJSON(result WhyResult) error {
@@ -199,11 +208,15 @@ func outputWhyText(result WhyResult) error {
 	}
 	fmt.Println()
 
-	// Show paths
-	fmt.Printf("Dependency paths (showing %d shortest):\n", len(result.Paths))
+	// Show paths in text mode with a default display cap to keep output readable.
+	pathsToShow := result.Paths
+	if len(pathsToShow) > whyDefaultTextPaths {
+		pathsToShow = pathsToShow[:whyDefaultTextPaths]
+	}
+	fmt.Printf("Dependency paths (showing %d of %d):\n", len(pathsToShow), len(result.Paths))
 	fmt.Println()
 
-	for i, wp := range result.Paths {
+	for i, wp := range pathsToShow {
 		if wp.Direct {
 			fmt.Printf("  %d. [DIRECT] ", i+1)
 		} else {
@@ -212,9 +225,13 @@ func outputWhyText(result WhyResult) error {
 		fmt.Println(strings.Join(wp.Path, " -> "))
 	}
 
-	if len(result.Paths) == 20 {
+	if len(result.Paths) > len(pathsToShow) || result.Truncated {
 		fmt.Println()
-		fmt.Println("  (showing first 20 paths, use --json for complete list)")
+		if result.Truncated {
+			fmt.Printf("  (search truncated at --max-paths=%d)\n", whyMaxPaths)
+		} else {
+			fmt.Printf("  (showing first %d in text output; use --json/--dot/--svg for full set)\n", whyDefaultTextPaths)
+		}
 	}
 
 	return nil
@@ -242,7 +259,12 @@ func outputWhyDOT(result WhyResult, depGraph *DependencyOverview) error {
 
 	// Output nodes with colors
 	fmt.Println("// Nodes")
+	nodeList := make([]string, 0, len(nodes))
 	for node := range nodes {
+		nodeList = append(nodeList, node)
+	}
+	sort.Strings(nodeList)
+	for _, node := range nodeList {
 		color := "white"
 		if node == result.Target {
 			color = "#ffffcc" // yellow for target
@@ -255,7 +277,12 @@ func outputWhyDOT(result WhyResult, depGraph *DependencyOverview) error {
 
 	// Output edges
 	fmt.Println("// Edges")
+	edgeList := make([]string, 0, len(edges))
 	for edge := range edges {
+		edgeList = append(edgeList, edge)
+	}
+	sort.Strings(edgeList)
+	for _, edge := range edgeList {
 		parts := strings.Split(edge, " -> ")
 		if len(parts) == 2 {
 			fmt.Printf("\"%s\" -> \"%s\";\n", parts[0], parts[1])
@@ -272,5 +299,6 @@ func init() {
 	whyCmd.Flags().BoolVarP(&jsonOutput, "json", "j", false, "Output in JSON format")
 	whyCmd.Flags().BoolVarP(&dotOutput, "dot", "", false, "Output in DOT format for Graphviz")
 	whyCmd.Flags().BoolVarP(&svgOutput, "svg", "s", false, "Output as self-contained SVG diagram")
+	whyCmd.Flags().IntVar(&whyMaxPaths, "max-paths", 0, "Maximum dependency paths to search. 0 means no limit")
 	whyCmd.Flags().StringSliceVarP(&mainModules, "mainModules", "m", []string{}, "Specify main modules")
 }
