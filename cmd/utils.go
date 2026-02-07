@@ -321,6 +321,9 @@ func generateGraph(goModGraphOutputString string, mainModules []string) Dependen
 	for scanner.Scan() {
 		line := scanner.Text()
 		words := strings.Fields(line)
+		if len(words) < 2 {
+			continue
+		}
 
 		lhs := parseModule(words[0])
 		// Skip go toolchain lines (e.g., "go@1.21.0 toolchain@go1.21.0")

@@ -19,6 +19,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"sort"
@@ -145,10 +146,25 @@ func runDiff(cmd *cobra.Command, args []string) error {
 
 	needClassification := diffSplitTestOnly || testOnly || nonTestOnly
 
-	// Save current HEAD to restore later
-	originalRef, err := gitCurrentRef()
+	// Save current ref state to restore later.
+	originalRef, err := gitCurrentRefState()
 	if err != nil {
-		return fmt.Errorf("failed to get current git ref: %w", err)
+		return fmt.Errorf("failed to get current git ref state: %w", err)
+	}
+	if dirty, err := gitWorkingTreeDirty(); err != nil {
+		return fmt.Errorf("failed to check working tree status: %w", err)
+	} else if dirty {
+		stashed, stashErr := gitStashPush()
+		if stashErr != nil {
+			return fmt.Errorf("working tree is dirty and automatic stash failed: %w", stashErr)
+		}
+		if stashed {
+			defer func() {
+				if popErr := gitStashPop(); popErr != nil {
+					fmt.Fprintf(os.Stderr, "warning: failed to restore stashed changes: %v\n", popErr)
+				}
+			}()
+		}
 	}
 
 	// Resolve symbolic refs (like HEAD, HEAD~1) to SHAs before any
@@ -164,7 +180,9 @@ func runDiff(cmd *cobra.Command, args []string) error {
 
 	// Ensure we restore the original state when done
 	defer func() {
-		_ = gitCheckout(originalRef)
+		if restoreErr := gitCheckout(originalRef); restoreErr != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to restore git ref %s: %v\n", originalRef, restoreErr)
+		}
 	}()
 
 	// Analyze base ref
@@ -338,13 +356,17 @@ func buildSplitResult(result DiffResult, beforeGraph, afterGraph *DependencyOver
 }
 
 func computeStats(depGraph *DependencyOverview) DiffStats {
-	var temp Chain
-	longestChain := getLongestChain(depGraph.MainModules[0], depGraph.Graph, temp, map[string]Chain{})
+	maxDepth := 0
+	if len(depGraph.MainModules) > 0 {
+		var temp Chain
+		longestChain := getLongestChain(depGraph.MainModules[0], depGraph.Graph, temp, map[string]Chain{})
+		maxDepth = len(longestChain)
+	}
 	return DiffStats{
 		DirectDeps: len(depGraph.DirectDepList),
 		TransDeps:  len(depGraph.TransDepList),
 		TotalDeps:  len(getAllDeps(depGraph.DirectDepList, depGraph.TransDepList)),
-		MaxDepth:   len(longestChain),
+		MaxDepth:   maxDepth,
 	}
 }
 
@@ -388,15 +410,82 @@ func gitResolveRef(ref string) (string, error) {
 }
 
 func gitCurrentRef() (string, error) {
-	cmd := exec.Command("git", "rev-parse", "HEAD")
+	cmd := exec.Command("git", "symbolic-ref", "-q", "HEAD")
 	if dir != "" {
 		cmd.Dir = dir
 	}
 	out, err := cmd.Output()
 	if err != nil {
-		return "", err
+		detached := exec.Command("git", "rev-parse", "HEAD")
+		if dir != "" {
+			detached.Dir = dir
+		}
+		out, err = detached.Output()
+		if err != nil {
+			return "", err
+		}
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+func gitCurrentRefState() (string, error) {
+	ref, err := gitCurrentRef()
+	if err != nil {
+		return "", err
+	}
+	if strings.HasPrefix(ref, "refs/heads/") {
+		return strings.TrimPrefix(ref, "refs/heads/"), nil
+	}
+	return ref, nil
+}
+
+func gitWorkingTreeDirty() (bool, error) {
+	cmd := exec.Command("git", "status", "--porcelain", "--untracked-files=no")
+	if dir != "" {
+		cmd.Dir = dir
+	}
+	out, err := cmd.Output()
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(string(out)) != "", nil
+}
+
+func gitStashRef() string {
+	cmd := exec.Command("git", "rev-parse", "-q", "--verify", "refs/stash")
+	if dir != "" {
+		cmd.Dir = dir
+	}
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func gitStashPush() (bool, error) {
+	before := gitStashRef()
+	cmd := exec.Command("git", "stash", "push", "-m", "depstat diff temporary stash")
+	if dir != "" {
+		cmd.Dir = dir
+	}
+	cmd.Stdout = io.Discard
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return false, err
+	}
+	after := gitStashRef()
+	return before != after && after != "", nil
+}
+
+func gitStashPop() error {
+	cmd := exec.Command("git", "stash", "pop", "-q")
+	if dir != "" {
+		cmd.Dir = dir
+	}
+	cmd.Stdout = io.Discard
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 func gitCheckout(ref string) error {
