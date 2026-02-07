@@ -493,6 +493,119 @@ github.com/b/pkg
 	}
 }
 
+func Test_parseVendorModulesTxt(t *testing.T) {
+	content := `# github.com/foo/bar v1.2.3
+## explicit; go 1.19
+github.com/foo/bar
+# github.com/baz/qux v0.5.0
+## explicit; go 1.20
+github.com/baz/qux
+# github.com/replaced/mod => github.com/fork/mod v1.0.0
+## explicit; go 1.21
+github.com/replaced/mod
+# github.com/another/one v2.0.0
+## explicit; go 1.22
+github.com/another/one
+`
+	modules := parseVendorModulesTxt(content)
+	if len(modules) != 3 {
+		t.Fatalf("expected 3 modules, got %d: %v", len(modules), modules)
+	}
+	if modules[0].Path != "github.com/foo/bar" || modules[0].Version != "v1.2.3" {
+		t.Errorf("module 0: got %+v", modules[0])
+	}
+	if modules[1].Path != "github.com/baz/qux" || modules[1].Version != "v0.5.0" {
+		t.Errorf("module 1: got %+v", modules[1])
+	}
+	if modules[2].Path != "github.com/another/one" || modules[2].Version != "v2.0.0" {
+		t.Errorf("module 2: got %+v", modules[2])
+	}
+}
+
+func Test_parseVendorModulesTxt_empty(t *testing.T) {
+	modules := parseVendorModulesTxt("")
+	if len(modules) != 0 {
+		t.Errorf("expected 0 modules for empty input, got %d", len(modules))
+	}
+}
+
+func Test_computeVersionChanges(t *testing.T) {
+	base := &DependencyOverview{
+		DirectDepList: []string{"B", "C", "D"},
+		TransDepList:  []string{"E"},
+		MainModules:   []string{"A"},
+		Versions: map[string]string{
+			"B": "v1.0.0",
+			"C": "v2.0.0",
+			"D": "v1.5.0",
+			"E": "v0.3.0",
+		},
+	}
+	head := &DependencyOverview{
+		DirectDepList: []string{"B", "C", "D"},
+		TransDepList:  []string{"E"},
+		MainModules:   []string{"A"},
+		Versions: map[string]string{
+			"B": "v1.1.0", // changed
+			"C": "v2.0.0", // same
+			"D": "v1.5.0", // same
+			"E": "v0.4.0", // changed
+		},
+	}
+	changes := computeVersionChanges(base, head)
+	if len(changes) != 2 {
+		t.Fatalf("expected 2 version changes, got %d: %v", len(changes), changes)
+	}
+	// Sorted by path
+	if changes[0].Path != "B" || changes[0].Before != "v1.0.0" || changes[0].After != "v1.1.0" {
+		t.Errorf("change 0: got %+v", changes[0])
+	}
+	if changes[1].Path != "E" || changes[1].Before != "v0.3.0" || changes[1].After != "v0.4.0" {
+		t.Errorf("change 1: got %+v", changes[1])
+	}
+}
+
+func Test_computeVersionChanges_removedModule(t *testing.T) {
+	base := &DependencyOverview{
+		DirectDepList: []string{"B", "C"},
+		TransDepList:  []string{},
+		MainModules:   []string{"A"},
+		Versions: map[string]string{
+			"B": "v1.0.0",
+			"C": "v2.0.0",
+		},
+	}
+	head := &DependencyOverview{
+		DirectDepList: []string{"B"},
+		TransDepList:  []string{},
+		MainModules:   []string{"A"},
+		Versions: map[string]string{
+			"B": "v1.1.0",
+		},
+	}
+	changes := computeVersionChanges(base, head)
+	// C was removed — should not appear as a version change
+	if len(changes) != 1 {
+		t.Fatalf("expected 1 version change, got %d: %v", len(changes), changes)
+	}
+	if changes[0].Path != "B" {
+		t.Errorf("expected B, got %s", changes[0].Path)
+	}
+}
+
+func Test_generateGraph_versions(t *testing.T) {
+	depGraph := generateGraph(getGoModGraphTestData(), nil)
+	if depGraph.Versions["G"] != "1.5" {
+		t.Errorf("expected G version 1.5, got %s", depGraph.Versions["G"])
+	}
+	if depGraph.Versions["B"] != "1.3" {
+		t.Errorf("expected B version 1.3, got %s", depGraph.Versions["B"])
+	}
+	if depGraph.Versions["E"] != "1.8" {
+		t.Errorf("expected E version 1.8, got %s", depGraph.Versions["E"])
+	}
+}
+
 func Test_generateGraph_overridden_versions(t *testing.T) {
 	mainModules := []string{"A", "D"}
 	// obsolete C@v1 has a cycle with D@v1 and a transitive ref to unwanted dependency E@v1

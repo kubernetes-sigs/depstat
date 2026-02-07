@@ -40,6 +40,8 @@ type DependencyOverview struct {
 	TransDepList []string
 	// Name of the module from which the dependencies are computed
 	MainModules []string
+	// Versions maps module name to its effective version in the graph
+	Versions map[string]string
 }
 
 // getMainModule returns the main module name using "go list -m"
@@ -229,6 +231,83 @@ func parseModWhyOutput(output string) map[string]bool {
 	return testOnly
 }
 
+// VendorModule represents a module entry from vendor/modules.txt.
+type VendorModule struct {
+	Path    string `json:"path"`
+	Version string `json:"version"`
+}
+
+// gitShowFile reads a file from a specific git ref.
+// Returns content and true if found, empty string and false if not.
+func gitShowFile(ref, path string) (string, bool) {
+	cmd := exec.Command("git", "show", ref+":"+path)
+	if dir != "" {
+		cmd.Dir = dir
+	}
+	out, err := cmd.Output()
+	if err != nil {
+		return "", false
+	}
+	return string(out), true
+}
+
+// parseVendorModulesTxt parses vendor/modules.txt content and returns vendored modules.
+// Lines starting with "# <path> <version>" are module entries.
+// Replacement lines ("# module => replacement") are skipped.
+func parseVendorModulesTxt(content string) []VendorModule {
+	var modules []VendorModule
+	scanner := bufio.NewScanner(strings.NewReader(content))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "# ") {
+			continue
+		}
+		fields := strings.Fields(line[2:])
+		if len(fields) < 2 {
+			continue
+		}
+		// Skip replacement lines ("# module => replacement")
+		if len(fields) >= 3 && fields[1] == "=>" {
+			continue
+		}
+		modules = append(modules, VendorModule{Path: fields[0], Version: fields[1]})
+	}
+	return modules
+}
+
+// gitDiffFiles returns added/deleted files between two refs under a given path prefix.
+func gitDiffFiles(baseRef, headRef, pathPrefix string) (added []string, deleted []string, err error) {
+	addCmd := exec.Command("git", "diff", "--diff-filter=A", "--name-only", baseRef, headRef, "--", pathPrefix)
+	if dir != "" {
+		addCmd.Dir = dir
+	}
+	addOut, err := addCmd.Output()
+	if err != nil {
+		return nil, nil, fmt.Errorf("git diff --diff-filter=A: %w", err)
+	}
+	for _, line := range strings.Split(strings.TrimSpace(string(addOut)), "\n") {
+		if line != "" {
+			added = append(added, line)
+		}
+	}
+
+	delCmd := exec.Command("git", "diff", "--diff-filter=D", "--name-only", baseRef, headRef, "--", pathPrefix)
+	if dir != "" {
+		delCmd.Dir = dir
+	}
+	delOut, err := delCmd.Output()
+	if err != nil {
+		return nil, nil, fmt.Errorf("git diff --diff-filter=D: %w", err)
+	}
+	for _, line := range strings.Split(strings.TrimSpace(string(delOut)), "\n") {
+		if line != "" {
+			deleted = append(deleted, line)
+		}
+	}
+
+	return added, deleted, nil
+}
+
 func generateGraph(goModGraphOutputString string, mainModules []string) DependencyOverview {
 	depGraph := DependencyOverview{MainModules: mainModules}
 	versionedGraph := make(map[module][]module)
@@ -351,6 +430,7 @@ func generateGraph(goModGraphOutputString string, mainModules []string) Dependen
 	}
 
 	depGraph.Graph = graph
+	depGraph.Versions = effectiveVersions
 
 	return depGraph
 }
