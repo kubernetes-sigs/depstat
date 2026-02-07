@@ -17,6 +17,7 @@ limitations under the License.
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -136,6 +137,9 @@ func runDiff(cmd *cobra.Command, args []string) error {
 	}
 	if diffSplitTestOnly && (testOnly || nonTestOnly) {
 		return fmt.Errorf("--split-test-only cannot be combined with --test-only or --non-test-only")
+	}
+	if dotOutput && svgOutput {
+		return fmt.Errorf("--dot and --svg are mutually exclusive")
 	}
 
 	baseRef := args[0]
@@ -287,6 +291,9 @@ func runDiff(cmd *cobra.Command, args []string) error {
 	}
 	if dotOutput {
 		return outputDOT(result, baseDepGraph, headDepGraph)
+	}
+	if svgOutput {
+		return outputSVG(result, baseDepGraph, headDepGraph)
 	}
 	return outputText(result)
 }
@@ -891,6 +898,53 @@ func outputDOT(result DiffResult, baseGraph, headGraph *DependencyOverview) erro
 	return nil
 }
 
+func outputSVG(result DiffResult, baseGraph, headGraph *DependencyOverview) error {
+	dot, err := captureDOTOutput(func() error {
+		return outputDOT(result, baseGraph, headGraph)
+	})
+	if err != nil {
+		return err
+	}
+
+	cmd := exec.Command("dot", "-Tsvg")
+	cmd.Stdin = strings.NewReader(dot)
+	cmd.Stdout = os.Stdout
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to render DOT as SVG via graphviz 'dot': %w: %s", err, strings.TrimSpace(stderr.String()))
+	}
+	return nil
+}
+
+func captureDOTOutput(fn func() error) (string, error) {
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		return "", err
+	}
+	os.Stdout = w
+
+	runErr := fn()
+	closeErr := w.Close()
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	_, readErr := io.Copy(&buf, r)
+	_ = r.Close()
+
+	if runErr != nil {
+		return "", runErr
+	}
+	if closeErr != nil {
+		return "", closeErr
+	}
+	if readErr != nil {
+		return "", readErr
+	}
+	return buf.String(), nil
+}
+
 // transitiveReduceEdges removes diff edges that are implied by longer paths
 // through the diff-relevant subgraph, but only when the alternative path
 // contains at least one other diff edge. This prevents genuinely new edges
@@ -1139,6 +1193,7 @@ func init() {
 	diffCmd.Flags().StringVarP(&dir, "dir", "d", "", "Directory containing the module to evaluate")
 	diffCmd.Flags().BoolVarP(&jsonOutput, "json", "j", false, "Output in JSON format")
 	diffCmd.Flags().BoolVarP(&dotOutput, "dot", "", false, "Output in DOT format for Graphviz")
+	diffCmd.Flags().BoolVarP(&svgOutput, "svg", "s", false, "Render DOT output as SVG (requires graphviz 'dot')")
 	diffCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Include edge-level changes")
 	diffCmd.Flags().StringSliceVarP(&mainModules, "mainModules", "m", []string{}, "Specify main modules")
 	diffCmd.Flags().BoolVar(&testOnly, "test-only", false, "Only show test-only dependency changes (uses go mod why -m)")
