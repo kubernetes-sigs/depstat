@@ -105,13 +105,61 @@ depstat diff "${BASE_SHA}" HEAD -m "${MAIN_MODULES}" --split-test-only --json > 
 jq '.split.testOnly, .split.nonTestOnly' diff-split.json
 ```
 
+Include vendor-level and vendor-file changes:
+
+```bash
+depstat diff "${BASE_SHA}" HEAD -m "${MAIN_MODULES}" --vendor --vendor-files --json > diff-vendor.json
+jq '{
+  versionChanges: (.versionChanges | length),
+  split: {
+    nonTestVersionChanges: (.split.nonTestOnly.versionChanges | length),
+    testOnlyVersionChanges: (.split.testOnly.versionChanges | length)
+  },
+  vendor: {
+    added: (.vendor.added | length),
+    removed: (.vendor.removed | length),
+    versionChanges: (.vendor.versionChanges | length),
+    vendorOnlyRemovals: (.vendor.vendorOnlyRemovals | length),
+    filesDeleted: (.vendor.filesDeleted | length)
+  }
+}' diff-vendor.json
+```
+
+Show vendor-only removals (high-value cleanup signal):
+
+```bash
+jq -r '.vendor.vendorOnlyRemovals[]? | "\(.path) \(.version)"' diff-vendor.json
+```
+
+Show vendored Go files deleted (possible API removals):
+
+```bash
+jq -r '.vendor.filesDeleted[]?' diff-vendor.json
+```
+
 PR-style usage (matches Prow pattern):
 
 ```bash
-depstat diff "${PULL_BASE_SHA}" HEAD -m "${MAIN_MODULES}" --json > diff.json
+depstat diff "${PULL_BASE_SHA}" HEAD -m "${MAIN_MODULES}" --split-test-only --vendor --vendor-files --json > diff.json
+
+# Why newly added modules exist
 for dep in $(jq -r '.added[]?' diff.json); do
   depstat why "${dep}" -m "${MAIN_MODULES}" || true
 done
+
+# Vendor-only removals are removed from vendor, but still in module graph
+for dep in $(jq -r '.vendor.vendorOnlyRemovals[]?.path' diff.json); do
+  depstat why "${dep}" -m "${MAIN_MODULES}" || true
+done
+
+# Quick high-signal summary for reviewers
+jq -r '[
+  "module added=\(.added|length) removed=\(.removed|length) versionChanges=\(.versionChanges|length)",
+  "non-test added=\(.split.nonTestOnly.added|length) removed=\(.split.nonTestOnly.removed|length) versionChanges=\(.split.nonTestOnly.versionChanges|length)",
+  "test-only added=\(.split.testOnly.added|length) removed=\(.split.testOnly.removed|length) versionChanges=\(.split.testOnly.versionChanges|length)",
+  "vendor added=\(.vendor.added|length) removed=\(.vendor.removed|length) versionChanges=\(.vendor.versionChanges|length)",
+  "vendorOnlyRemovals=\(.vendor.vendorOnlyRemovals|length) filesDeleted=\(.vendor.filesDeleted|length)"
+] | .[]' diff.json
 ```
 
 ### `archived`

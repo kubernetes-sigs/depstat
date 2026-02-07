@@ -22,6 +22,7 @@ import (
 	"log"
 	"os/exec"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -40,6 +41,8 @@ type DependencyOverview struct {
 	TransDepList []string
 	// Name of the module from which the dependencies are computed
 	MainModules []string
+	// Versions maps module name to its effective version in the graph
+	Versions map[string]string
 }
 
 // getMainModule returns the main module name using "go list -m"
@@ -229,6 +232,83 @@ func parseModWhyOutput(output string) map[string]bool {
 	return testOnly
 }
 
+// VendorModule represents a module entry from vendor/modules.txt.
+type VendorModule struct {
+	Path    string `json:"path"`
+	Version string `json:"version"`
+}
+
+// gitShowFile reads a file from a specific git ref.
+// Returns content and true if found, empty string and false if not.
+func gitShowFile(ref, path string) (string, bool) {
+	cmd := exec.Command("git", "show", ref+":"+path)
+	if dir != "" {
+		cmd.Dir = dir
+	}
+	out, err := cmd.Output()
+	if err != nil {
+		return "", false
+	}
+	return string(out), true
+}
+
+// parseVendorModulesTxt parses vendor/modules.txt content and returns vendored modules.
+// Lines starting with "# <path> <version>" are module entries.
+// Replacement lines ("# module => replacement") are skipped.
+func parseVendorModulesTxt(content string) []VendorModule {
+	var modules []VendorModule
+	scanner := bufio.NewScanner(strings.NewReader(content))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "# ") {
+			continue
+		}
+		fields := strings.Fields(line[2:])
+		if len(fields) < 2 {
+			continue
+		}
+		// Skip replacement lines ("# module => replacement")
+		if len(fields) >= 3 && fields[1] == "=>" {
+			continue
+		}
+		modules = append(modules, VendorModule{Path: fields[0], Version: fields[1]})
+	}
+	return modules
+}
+
+// gitDiffFiles returns added/deleted files between two refs under a given path prefix.
+func gitDiffFiles(baseRef, headRef, pathPrefix string) (added []string, deleted []string, err error) {
+	addCmd := exec.Command("git", "diff", "--diff-filter=A", "--name-only", baseRef, headRef, "--", pathPrefix)
+	if dir != "" {
+		addCmd.Dir = dir
+	}
+	addOut, err := addCmd.Output()
+	if err != nil {
+		return nil, nil, fmt.Errorf("git diff --diff-filter=A: %w", err)
+	}
+	for _, line := range strings.Split(strings.TrimSpace(string(addOut)), "\n") {
+		if line != "" {
+			added = append(added, line)
+		}
+	}
+
+	delCmd := exec.Command("git", "diff", "--diff-filter=D", "--name-only", baseRef, headRef, "--", pathPrefix)
+	if dir != "" {
+		delCmd.Dir = dir
+	}
+	delOut, err := delCmd.Output()
+	if err != nil {
+		return nil, nil, fmt.Errorf("git diff --diff-filter=D: %w", err)
+	}
+	for _, line := range strings.Split(strings.TrimSpace(string(delOut)), "\n") {
+		if line != "" {
+			deleted = append(deleted, line)
+		}
+	}
+
+	return added, deleted, nil
+}
+
 func generateGraph(goModGraphOutputString string, mainModules []string) DependencyOverview {
 	depGraph := DependencyOverview{MainModules: mainModules}
 	versionedGraph := make(map[module][]module)
@@ -274,7 +354,7 @@ func generateGraph(goModGraphOutputString string, mainModules []string) Dependen
 	effectiveVersions := map[string]string{}
 	for _, mm := range versionedMainModules {
 		for _, m := range versionedGraph[mm] {
-			if effectiveVersions[m.name] < m.version {
+			if versionGreater(m.version, effectiveVersions[m.name]) {
 				effectiveVersions[m.name] = m.version
 			}
 		}
@@ -302,7 +382,7 @@ func generateGraph(goModGraphOutputString string, mainModules []string) Dependen
 		}
 		// mark as reachable
 		reachableModules[v.name] = from
-		if effectiveVersion, ok := effectiveVersions[v.name]; ok && effectiveVersion > v.version {
+		if effectiveVersion, ok := effectiveVersions[v.name]; ok && versionGreater(effectiveVersion, v.version) {
 			// replace with the effective version if applicable
 			v.version = effectiveVersion
 		} else {
@@ -351,6 +431,75 @@ func generateGraph(goModGraphOutputString string, mainModules []string) Dependen
 	}
 
 	depGraph.Graph = graph
+	depGraph.Versions = effectiveVersions
 
 	return depGraph
+}
+
+// versionGreater compares module versions with numeric major/minor/patch
+// ordering for v-prefixed semver-like versions and falls back to lexical
+// ordering for non-semver fixtures.
+func versionGreater(a, b string) bool {
+	if a == b {
+		return false
+	}
+	if cmp, ok := compareSemverLike(a, b); ok {
+		return cmp > 0
+	}
+	return a > b
+}
+
+func compareSemverLike(a, b string) (int, bool) {
+	pa, oka := parseSemverLike(a)
+	pb, okb := parseSemverLike(b)
+	if !oka || !okb {
+		return 0, false
+	}
+	for i := 0; i < 3; i++ {
+		if pa[i] < pb[i] {
+			return -1, true
+		}
+		if pa[i] > pb[i] {
+			return 1, true
+		}
+	}
+	// Preserve deterministic ordering for equal numeric versions with different
+	// suffixes (e.g., pseudo-version timestamps/prerelease metadata).
+	switch {
+	case a < b:
+		return -1, true
+	case a > b:
+		return 1, true
+	default:
+		return 0, true
+	}
+}
+
+func parseSemverLike(v string) ([3]int, bool) {
+	var out [3]int
+	if len(v) < 2 || v[0] != 'v' {
+		return out, false
+	}
+	core := strings.TrimPrefix(v, "v")
+	if idx := strings.IndexAny(core, "-+"); idx >= 0 {
+		core = core[:idx]
+	}
+	parts := strings.Split(core, ".")
+	if len(parts) < 2 {
+		return out, false
+	}
+	if len(parts) == 2 {
+		parts = append(parts, "0")
+	}
+	if len(parts) != 3 {
+		return out, false
+	}
+	for i := range 3 {
+		n, err := strconv.Atoi(parts[i])
+		if err != nil {
+			return out, false
+		}
+		out[i] = n
+	}
+	return out, true
 }

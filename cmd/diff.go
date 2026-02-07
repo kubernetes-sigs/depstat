@@ -32,6 +32,8 @@ var svgOutput bool
 var testOnly bool
 var nonTestOnly bool
 var diffSplitTestOnly bool
+var vendorFlag bool
+var vendorFilesFlag bool
 
 // DiffStats holds the stats for a single analysis
 type DiffStats struct {
@@ -50,13 +52,14 @@ type DiffCounts struct {
 
 // DiffFilteredSection holds dependency changes/counts for one category.
 type DiffFilteredSection struct {
-	Before       DiffCounts `json:"before"`
-	After        DiffCounts `json:"after"`
-	Delta        DiffCounts `json:"delta"`
-	Added        []string   `json:"added"`
-	Removed      []string   `json:"removed"`
-	EdgesAdded   []string   `json:"edgesAdded"`
-	EdgesRemoved []string   `json:"edgesRemoved"`
+	Before         DiffCounts      `json:"before"`
+	After          DiffCounts      `json:"after"`
+	Delta          DiffCounts      `json:"delta"`
+	Added          []string        `json:"added"`
+	Removed        []string        `json:"removed"`
+	EdgesAdded     []string        `json:"edgesAdded"`
+	EdgesRemoved   []string        `json:"edgesRemoved"`
+	VersionChanges []VersionChange `json:"versionChanges,omitempty"`
 }
 
 // DiffSplitResult holds separate test-only vs non-test dependency changes.
@@ -65,22 +68,44 @@ type DiffSplitResult struct {
 	NonTestOnly DiffFilteredSection `json:"nonTestOnly"`
 }
 
+// VersionChange represents a module whose version changed between refs.
+type VersionChange struct {
+	Path   string `json:"path"`
+	Before string `json:"before"`
+	After  string `json:"after"`
+}
+
+// VendorDiffResult holds vendor-level diff information.
+type VendorDiffResult struct {
+	BeforeCount        int             `json:"beforeCount"`
+	AfterCount         int             `json:"afterCount"`
+	DeltaCount         int             `json:"deltaCount"`
+	Added              []VendorModule  `json:"added"`
+	Removed            []VendorModule  `json:"removed"`
+	VersionChanges     []VersionChange `json:"versionChanges,omitempty"`
+	VendorOnlyRemovals []VendorModule  `json:"vendorOnlyRemovals,omitempty"`
+	FilesAdded         []string        `json:"filesAdded,omitempty"`
+	FilesDeleted       []string        `json:"filesDeleted,omitempty"`
+}
+
 // DiffResult holds the complete diff analysis
 type DiffResult struct {
-	Filter         string           `json:"filter,omitempty"`
-	BaseRef        string           `json:"baseRef"`
-	HeadRef        string           `json:"headRef"`
-	Before         DiffStats        `json:"before"`
-	After          DiffStats        `json:"after"`
-	Delta          DiffStats        `json:"delta"`
-	FilteredBefore *DiffCounts      `json:"filteredBefore,omitempty"`
-	FilteredAfter  *DiffCounts      `json:"filteredAfter,omitempty"`
-	FilteredDelta  *DiffCounts      `json:"filteredDelta,omitempty"`
-	Split          *DiffSplitResult `json:"split,omitempty"`
-	Added          []string         `json:"added"`
-	Removed        []string         `json:"removed"`
-	EdgesAdded     []string         `json:"edgesAdded"`
-	EdgesRemoved   []string         `json:"edgesRemoved"`
+	Filter         string            `json:"filter,omitempty"`
+	BaseRef        string            `json:"baseRef"`
+	HeadRef        string            `json:"headRef"`
+	Before         DiffStats         `json:"before"`
+	After          DiffStats         `json:"after"`
+	Delta          DiffStats         `json:"delta"`
+	FilteredBefore *DiffCounts       `json:"filteredBefore,omitempty"`
+	FilteredAfter  *DiffCounts       `json:"filteredAfter,omitempty"`
+	FilteredDelta  *DiffCounts       `json:"filteredDelta,omitempty"`
+	Split          *DiffSplitResult  `json:"split,omitempty"`
+	Added          []string          `json:"added"`
+	Removed        []string          `json:"removed"`
+	EdgesAdded     []string          `json:"edgesAdded"`
+	EdgesRemoved   []string          `json:"edgesRemoved"`
+	VersionChanges []VersionChange   `json:"versionChanges,omitempty"`
+	Vendor         *VendorDiffResult `json:"vendor,omitempty"`
 }
 
 var diffCmd = &cobra.Command{
@@ -190,10 +215,11 @@ func runDiff(cmd *cobra.Command, args []string) error {
 			TotalDeps:  headStats.TotalDeps - baseStats.TotalDeps,
 			MaxDepth:   headStats.MaxDepth - baseStats.MaxDepth,
 		},
-		Added:        diffSlices(baseDeps, headDeps),
-		Removed:      diffSlices(headDeps, baseDeps),
-		EdgesAdded:   diffSlices(baseEdges, headEdges),
-		EdgesRemoved: diffSlices(headEdges, baseEdges),
+		Added:          diffSlices(baseDeps, headDeps),
+		Removed:        diffSlices(headDeps, baseDeps),
+		EdgesAdded:     diffSlices(baseEdges, headEdges),
+		EdgesRemoved:   diffSlices(headEdges, baseEdges),
+		VersionChanges: computeVersionChanges(baseDepGraph, headDepGraph),
 	}
 
 	// Build split view
@@ -212,6 +238,7 @@ func runDiff(cmd *cobra.Command, args []string) error {
 		result.Removed = filterDepsByTestStatus(result.Removed, baseTestOnly, testOnly)
 		result.EdgesAdded = filterEdgesByTestStatus(result.EdgesAdded, headTestOnly, testOnly)
 		result.EdgesRemoved = filterEdgesByTestStatus(result.EdgesRemoved, baseTestOnly, testOnly)
+		result.VersionChanges = filterVersionChangesByTestStatus(result.VersionChanges, headTestOnly, testOnly)
 
 		filteredBefore := computeFilteredCounts(baseDepGraph, baseTestOnly, testOnly)
 		filteredAfter := computeFilteredCounts(headDepGraph, headTestOnly, testOnly)
@@ -221,6 +248,18 @@ func runDiff(cmd *cobra.Command, args []string) error {
 			DirectDeps: filteredAfter.DirectDeps - filteredBefore.DirectDeps,
 			TransDeps:  filteredAfter.TransDeps - filteredBefore.TransDeps,
 			TotalDeps:  filteredAfter.TotalDeps - filteredBefore.TotalDeps,
+		}
+	}
+
+	// Vendor diff
+	includeVendor := vendorFlag || vendorFilesFlag
+	if includeVendor {
+		vendor, vendorErr := computeVendorDiff(baseSHA, headSHA, vendorFilesFlag)
+		if vendorErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: vendor diff skipped: %v\n", vendorErr)
+		} else {
+			vendor.VendorOnlyRemovals = computeVendorOnlyRemovals(vendor.Removed, result.Removed)
+			result.Vendor = vendor
 		}
 	}
 
@@ -280,13 +319,14 @@ func buildSplitSection(result DiffResult, beforeGraph, afterGraph *DependencyOve
 	beforeCounts := computeFilteredCounts(beforeGraph, beforeTestOnly, wantTestOnly)
 	afterCounts := computeFilteredCounts(afterGraph, afterTestOnly, wantTestOnly)
 	return DiffFilteredSection{
-		Before:       beforeCounts,
-		After:        afterCounts,
-		Delta:        DiffCounts{DirectDeps: afterCounts.DirectDeps - beforeCounts.DirectDeps, TransDeps: afterCounts.TransDeps - beforeCounts.TransDeps, TotalDeps: afterCounts.TotalDeps - beforeCounts.TotalDeps},
-		Added:        filterDepsByTestStatus(result.Added, afterTestOnly, wantTestOnly),
-		Removed:      filterDepsByTestStatus(result.Removed, beforeTestOnly, wantTestOnly),
-		EdgesAdded:   filterEdgesByTestStatus(result.EdgesAdded, afterTestOnly, wantTestOnly),
-		EdgesRemoved: filterEdgesByTestStatus(result.EdgesRemoved, beforeTestOnly, wantTestOnly),
+		Before:         beforeCounts,
+		After:          afterCounts,
+		Delta:          DiffCounts{DirectDeps: afterCounts.DirectDeps - beforeCounts.DirectDeps, TransDeps: afterCounts.TransDeps - beforeCounts.TransDeps, TotalDeps: afterCounts.TotalDeps - beforeCounts.TotalDeps},
+		Added:          filterDepsByTestStatus(result.Added, afterTestOnly, wantTestOnly),
+		Removed:        filterDepsByTestStatus(result.Removed, beforeTestOnly, wantTestOnly),
+		EdgesAdded:     filterEdgesByTestStatus(result.EdgesAdded, afterTestOnly, wantTestOnly),
+		EdgesRemoved:   filterEdgesByTestStatus(result.EdgesRemoved, beforeTestOnly, wantTestOnly),
+		VersionChanges: filterVersionChangesByTestStatus(result.VersionChanges, afterTestOnly, wantTestOnly),
 	}
 }
 
@@ -386,6 +426,8 @@ func outputText(result DiffResult) error {
 	fmt.Println(strings.Repeat("=", 50))
 	fmt.Println()
 
+	printSummary(result)
+
 	// Metrics table
 	fmt.Println("Metrics:")
 	fmt.Println("┌────────────────────┬──────────┬──────────┬─────────┐")
@@ -439,6 +481,15 @@ func outputText(result DiffResult) error {
 	}
 	fmt.Println()
 
+	// Version changes
+	if len(result.VersionChanges) > 0 {
+		fmt.Printf("Version Changes (%d):\n", len(result.VersionChanges))
+		for _, vc := range result.VersionChanges {
+			fmt.Printf("  ~ %-50s %s → %s\n", vc.Path, vc.Before, vc.After)
+		}
+		fmt.Println()
+	}
+
 	// Edge changes (verbose only)
 	if verbose {
 		fmt.Printf("Edges Added (%d):\n", len(result.EdgesAdded))
@@ -450,6 +501,71 @@ func outputText(result DiffResult) error {
 		fmt.Printf("Edges Removed (%d):\n", len(result.EdgesRemoved))
 		for _, edge := range result.EdgesRemoved {
 			fmt.Printf("  - %s\n", edge)
+		}
+		fmt.Println()
+	}
+
+	// Vendor changes
+	if result.Vendor != nil {
+		v := result.Vendor
+		fmt.Println("Vendor Changes:")
+		fmt.Println("┌────────────────────┬──────────┬──────────┬─────────┐")
+		fmt.Println("│ Metric             │  Before  │  After   │  Delta  │")
+		fmt.Println("├────────────────────┼──────────┼──────────┼─────────┤")
+		fmt.Printf("│ Vendored Modules   │ %8d │ %8d │ %+7d │\n", v.BeforeCount, v.AfterCount, v.DeltaCount)
+		fmt.Println("└────────────────────┴──────────┴──────────┴─────────┘")
+		fmt.Println()
+
+		fmt.Printf("Vendor Modules Added (%d):\n", len(v.Added))
+		if len(v.Added) == 0 {
+			fmt.Println("  (none)")
+		} else {
+			for _, m := range v.Added {
+				fmt.Printf("  + %-50s %s\n", m.Path, m.Version)
+			}
+		}
+		fmt.Println()
+
+		fmt.Printf("Vendor Modules Removed (%d):\n", len(v.Removed))
+		if len(v.Removed) == 0 {
+			fmt.Println("  (none)")
+		} else {
+			for _, m := range v.Removed {
+				fmt.Printf("  - %-50s %s\n", m.Path, m.Version)
+			}
+		}
+		fmt.Println()
+
+		if len(v.VersionChanges) > 0 {
+			fmt.Printf("Vendor Version Changes (%d):\n", len(v.VersionChanges))
+			for _, vc := range v.VersionChanges {
+				fmt.Printf("  ~ %-50s %s → %s\n", vc.Path, vc.Before, vc.After)
+			}
+			fmt.Println()
+		}
+
+		if len(v.VendorOnlyRemovals) > 0 {
+			fmt.Printf("Vendor-only Removals (%d):\n", len(v.VendorOnlyRemovals))
+			for _, m := range v.VendorOnlyRemovals {
+				fmt.Printf("  - %-50s %s\n", m.Path, m.Version)
+			}
+			fmt.Println()
+		}
+
+		if len(v.FilesDeleted) > 0 {
+			fmt.Printf("Vendor Files Deleted (%d):\n", len(v.FilesDeleted))
+			for _, f := range v.FilesDeleted {
+				fmt.Printf("  %s\n", f)
+			}
+			fmt.Println()
+		}
+
+		if len(v.FilesAdded) > 0 {
+			fmt.Printf("Vendor Files Added (%d):\n", len(v.FilesAdded))
+			for _, f := range v.FilesAdded {
+				fmt.Printf("  %s\n", f)
+			}
+			fmt.Println()
 		}
 	}
 
@@ -467,6 +583,9 @@ func printSplitSection(title string, sec DiffFilteredSection) {
 	fmt.Println("└────────────────────┴──────────┴──────────┴─────────┘")
 	fmt.Printf("Added (%d)\n", len(sec.Added))
 	fmt.Printf("Removed (%d)\n", len(sec.Removed))
+	if len(sec.VersionChanges) > 0 {
+		fmt.Printf("Version Changes (%d)\n", len(sec.VersionChanges))
+	}
 	fmt.Println()
 }
 
@@ -484,6 +603,13 @@ func outputDOT(result DiffResult, baseGraph, headGraph *DependencyOverview) erro
 	}
 	for _, dep := range result.Removed {
 		changedNodes[dep] = "removed"
+	}
+
+	// Add version-changed nodes
+	for _, vc := range result.VersionChanges {
+		if changedNodes[vc.Path] == "" {
+			changedNodes[vc.Path] = "changed"
+		}
 	}
 
 	// Add nodes involved in edge changes
@@ -521,6 +647,8 @@ func outputDOT(result DiffResult, baseGraph, headGraph *DependencyOverview) erro
 		case "removed":
 			color = "#ffcccc" // red
 			style = "filled,dashed"
+		case "changed":
+			color = "#ffffcc" // yellow
 		}
 		fmt.Printf("\"%s\" [fillcolor=\"%s\", style=\"%s\"];\n", node, color, style)
 	}
@@ -549,6 +677,163 @@ func outputDOT(result DiffResult, baseGraph, headGraph *DependencyOverview) erro
 	return nil
 }
 
+// computeVersionChanges returns modules present in both base and head
+// whose effective versions differ.
+func computeVersionChanges(base, head *DependencyOverview) []VersionChange {
+	var changes []VersionChange
+	headDeps := make(map[string]bool)
+	for _, dep := range getAllDeps(head.DirectDepList, head.TransDepList) {
+		headDeps[dep] = true
+	}
+	for _, dep := range getAllDeps(base.DirectDepList, base.TransDepList) {
+		if !headDeps[dep] {
+			continue // removed module, not a version change
+		}
+		baseVer := base.Versions[dep]
+		headVer := head.Versions[dep]
+		if baseVer != "" && headVer != "" && baseVer != headVer {
+			changes = append(changes, VersionChange{Path: dep, Before: baseVer, After: headVer})
+		}
+	}
+	sort.Slice(changes, func(i, j int) bool {
+		return changes[i].Path < changes[j].Path
+	})
+	return changes
+}
+
+// filterVersionChangesByTestStatus filters version changes by test-only status.
+func filterVersionChangesByTestStatus(changes []VersionChange, testOnlySet map[string]bool, wantTestOnly bool) []VersionChange {
+	var filtered []VersionChange
+	for _, vc := range changes {
+		isTestOnly := testOnlySet[vc.Path]
+		if wantTestOnly == isTestOnly {
+			filtered = append(filtered, vc)
+		}
+	}
+	return filtered
+}
+
+// computeVendorDiff computes vendor-level changes between two git refs
+// by parsing vendor/modules.txt at each ref.
+func computeVendorDiff(baseSHA, headSHA string, includeFiles bool) (*VendorDiffResult, error) {
+	baseContent, baseOK := gitShowFile(baseSHA, "vendor/modules.txt")
+	headContent, headOK := gitShowFile(headSHA, "vendor/modules.txt")
+
+	if !baseOK && !headOK {
+		return nil, fmt.Errorf("vendor/modules.txt not found at either ref")
+	}
+
+	baseModules := parseVendorModulesTxt(baseContent)
+	headModules := parseVendorModulesTxt(headContent)
+
+	baseMap := make(map[string]string)
+	for _, m := range baseModules {
+		baseMap[m.Path] = m.Version
+	}
+	headMap := make(map[string]string)
+	for _, m := range headModules {
+		headMap[m.Path] = m.Version
+	}
+
+	result := &VendorDiffResult{
+		BeforeCount: len(baseModules),
+		AfterCount:  len(headModules),
+		DeltaCount:  len(headModules) - len(baseModules),
+	}
+
+	// Find added and version changes
+	for _, m := range headModules {
+		if baseVer, ok := baseMap[m.Path]; !ok {
+			result.Added = append(result.Added, m)
+		} else if baseVer != m.Version {
+			result.VersionChanges = append(result.VersionChanges, VersionChange{
+				Path: m.Path, Before: baseVer, After: m.Version,
+			})
+		}
+	}
+
+	// Find removed
+	for _, m := range baseModules {
+		if _, ok := headMap[m.Path]; !ok {
+			result.Removed = append(result.Removed, m)
+		}
+	}
+
+	// Sort results
+	sort.Slice(result.Added, func(i, j int) bool { return result.Added[i].Path < result.Added[j].Path })
+	sort.Slice(result.Removed, func(i, j int) bool { return result.Removed[i].Path < result.Removed[j].Path })
+	sort.Slice(result.VersionChanges, func(i, j int) bool { return result.VersionChanges[i].Path < result.VersionChanges[j].Path })
+
+	// File-level diff if requested
+	if includeFiles {
+		added, deleted, err := gitDiffFiles(baseSHA, headSHA, "vendor/")
+		if err == nil {
+			for _, f := range added {
+				if strings.HasSuffix(f, ".go") {
+					result.FilesAdded = append(result.FilesAdded, f)
+				}
+			}
+			for _, f := range deleted {
+				if strings.HasSuffix(f, ".go") {
+					result.FilesDeleted = append(result.FilesDeleted, f)
+				}
+			}
+		}
+	}
+
+	return result, nil
+}
+
+func computeVendorOnlyRemovals(vendorRemoved []VendorModule, graphRemoved []string) []VendorModule {
+	removedFromGraph := make(map[string]bool, len(graphRemoved))
+	for _, dep := range graphRemoved {
+		removedFromGraph[dep] = true
+	}
+	var out []VendorModule
+	for _, m := range vendorRemoved {
+		if !removedFromGraph[m.Path] {
+			out = append(out, m)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
+	return out
+}
+
+func printSummary(result DiffResult) {
+	fmt.Println("Summary:")
+	fmt.Printf("  Module graph: +%d added, -%d removed, ~%d version changes\n",
+		len(result.Added), len(result.Removed), len(result.VersionChanges))
+	if result.Split != nil {
+		fmt.Printf("  Non-test:     +%d added, -%d removed, ~%d version changes\n",
+			len(result.Split.NonTestOnly.Added), len(result.Split.NonTestOnly.Removed), len(result.Split.NonTestOnly.VersionChanges))
+		fmt.Printf("  Test-only:    +%d added, -%d removed, ~%d version changes\n",
+			len(result.Split.TestOnly.Added), len(result.Split.TestOnly.Removed), len(result.Split.TestOnly.VersionChanges))
+	}
+	if result.Vendor != nil {
+		v := result.Vendor
+		fmt.Printf("  Vendor:       +%d added, -%d removed, ~%d version changes\n",
+			len(v.Added), len(v.Removed), len(v.VersionChanges))
+		if len(v.FilesAdded) > 0 || len(v.FilesDeleted) > 0 {
+			fmt.Printf("  Vendor files: +%d added, -%d deleted\n", len(v.FilesAdded), len(v.FilesDeleted))
+		}
+	}
+	fmt.Println("  Key events:")
+	if len(result.VersionChanges) > 0 && len(result.Added) == 0 && len(result.Removed) == 0 {
+		fmt.Println("    - Dependency set unchanged, but versions changed")
+	}
+	if result.Vendor != nil && len(result.Vendor.VendorOnlyRemovals) > 0 {
+		fmt.Printf("    - %d modules removed from vendor but still in module graph\n", len(result.Vendor.VendorOnlyRemovals))
+	}
+	if result.Vendor != nil && len(result.Vendor.FilesDeleted) > 0 {
+		fmt.Printf("    - %d vendored Go files deleted (possible API removals)\n", len(result.Vendor.FilesDeleted))
+	}
+	if len(result.VersionChanges) == 0 && len(result.Added) == 0 && len(result.Removed) == 0 &&
+		(result.Vendor == nil || (len(result.Vendor.VersionChanges) == 0 && len(result.Vendor.Added) == 0 && len(result.Vendor.Removed) == 0 && len(result.Vendor.FilesDeleted) == 0 && len(result.Vendor.FilesAdded) == 0)) {
+		fmt.Println("    - No dependency changes detected")
+	}
+	fmt.Println()
+}
+
 func init() {
 	rootCmd.AddCommand(diffCmd)
 	diffCmd.Flags().StringVarP(&dir, "dir", "d", "", "Directory containing the module to evaluate")
@@ -561,4 +846,6 @@ func init() {
 	diffCmd.Flags().BoolVar(&diffSplitTestOnly, "split-test-only", false, "Split diff output into test-only and non-test sections (uses go mod why -m)")
 	_ = diffCmd.Flags().MarkDeprecated("test-only", "use --split-test-only and read split.testOnly")
 	_ = diffCmd.Flags().MarkDeprecated("non-test-only", "use --split-test-only and read split.nonTestOnly")
+	diffCmd.Flags().BoolVar(&vendorFlag, "vendor", false, "Include vendor-level diff using vendor/modules.txt")
+	diffCmd.Flags().BoolVar(&vendorFilesFlag, "vendor-files", false, "Report added/deleted Go files in vendor/ (implies --vendor)")
 }
