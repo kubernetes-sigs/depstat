@@ -77,28 +77,29 @@ type VersionChange struct {
 
 // VendorDiffResult holds vendor-level diff information.
 type VendorDiffResult struct {
-	BeforeCount    int             `json:"beforeCount"`
-	AfterCount     int             `json:"afterCount"`
-	DeltaCount     int             `json:"deltaCount"`
-	Added          []VendorModule  `json:"added"`
-	Removed        []VendorModule  `json:"removed"`
-	VersionChanges []VersionChange `json:"versionChanges,omitempty"`
-	FilesAdded     []string        `json:"filesAdded,omitempty"`
-	FilesDeleted   []string        `json:"filesDeleted,omitempty"`
+	BeforeCount        int             `json:"beforeCount"`
+	AfterCount         int             `json:"afterCount"`
+	DeltaCount         int             `json:"deltaCount"`
+	Added              []VendorModule  `json:"added"`
+	Removed            []VendorModule  `json:"removed"`
+	VersionChanges     []VersionChange `json:"versionChanges,omitempty"`
+	VendorOnlyRemovals []VendorModule  `json:"vendorOnlyRemovals,omitempty"`
+	FilesAdded         []string        `json:"filesAdded,omitempty"`
+	FilesDeleted       []string        `json:"filesDeleted,omitempty"`
 }
 
 // DiffResult holds the complete diff analysis
 type DiffResult struct {
-	Filter         string           `json:"filter,omitempty"`
-	BaseRef        string           `json:"baseRef"`
-	HeadRef        string           `json:"headRef"`
-	Before         DiffStats        `json:"before"`
-	After          DiffStats        `json:"after"`
-	Delta          DiffStats        `json:"delta"`
-	FilteredBefore *DiffCounts      `json:"filteredBefore,omitempty"`
-	FilteredAfter  *DiffCounts      `json:"filteredAfter,omitempty"`
-	FilteredDelta  *DiffCounts      `json:"filteredDelta,omitempty"`
-	Split          *DiffSplitResult `json:"split,omitempty"`
+	Filter         string            `json:"filter,omitempty"`
+	BaseRef        string            `json:"baseRef"`
+	HeadRef        string            `json:"headRef"`
+	Before         DiffStats         `json:"before"`
+	After          DiffStats         `json:"after"`
+	Delta          DiffStats         `json:"delta"`
+	FilteredBefore *DiffCounts       `json:"filteredBefore,omitempty"`
+	FilteredAfter  *DiffCounts       `json:"filteredAfter,omitempty"`
+	FilteredDelta  *DiffCounts       `json:"filteredDelta,omitempty"`
+	Split          *DiffSplitResult  `json:"split,omitempty"`
 	Added          []string          `json:"added"`
 	Removed        []string          `json:"removed"`
 	EdgesAdded     []string          `json:"edgesAdded"`
@@ -214,9 +215,9 @@ func runDiff(cmd *cobra.Command, args []string) error {
 			TotalDeps:  headStats.TotalDeps - baseStats.TotalDeps,
 			MaxDepth:   headStats.MaxDepth - baseStats.MaxDepth,
 		},
-		Added:        diffSlices(baseDeps, headDeps),
-		Removed:      diffSlices(headDeps, baseDeps),
-		EdgesAdded:   diffSlices(baseEdges, headEdges),
+		Added:          diffSlices(baseDeps, headDeps),
+		Removed:        diffSlices(headDeps, baseDeps),
+		EdgesAdded:     diffSlices(baseEdges, headEdges),
 		EdgesRemoved:   diffSlices(headEdges, baseEdges),
 		VersionChanges: computeVersionChanges(baseDepGraph, headDepGraph),
 	}
@@ -251,14 +252,13 @@ func runDiff(cmd *cobra.Command, args []string) error {
 	}
 
 	// Vendor diff
-	if vendorFilesFlag {
-		vendorFlag = true
-	}
-	if vendorFlag {
+	includeVendor := vendorFlag || vendorFilesFlag
+	if includeVendor {
 		vendor, vendorErr := computeVendorDiff(baseSHA, headSHA, vendorFilesFlag)
 		if vendorErr != nil {
 			fmt.Fprintf(os.Stderr, "Warning: vendor diff skipped: %v\n", vendorErr)
 		} else {
+			vendor.VendorOnlyRemovals = computeVendorOnlyRemovals(vendor.Removed, result.Removed)
 			result.Vendor = vendor
 		}
 	}
@@ -319,11 +319,11 @@ func buildSplitSection(result DiffResult, beforeGraph, afterGraph *DependencyOve
 	beforeCounts := computeFilteredCounts(beforeGraph, beforeTestOnly, wantTestOnly)
 	afterCounts := computeFilteredCounts(afterGraph, afterTestOnly, wantTestOnly)
 	return DiffFilteredSection{
-		Before:       beforeCounts,
-		After:        afterCounts,
-		Delta:        DiffCounts{DirectDeps: afterCounts.DirectDeps - beforeCounts.DirectDeps, TransDeps: afterCounts.TransDeps - beforeCounts.TransDeps, TotalDeps: afterCounts.TotalDeps - beforeCounts.TotalDeps},
-		Added:        filterDepsByTestStatus(result.Added, afterTestOnly, wantTestOnly),
-		Removed:      filterDepsByTestStatus(result.Removed, beforeTestOnly, wantTestOnly),
+		Before:         beforeCounts,
+		After:          afterCounts,
+		Delta:          DiffCounts{DirectDeps: afterCounts.DirectDeps - beforeCounts.DirectDeps, TransDeps: afterCounts.TransDeps - beforeCounts.TransDeps, TotalDeps: afterCounts.TotalDeps - beforeCounts.TotalDeps},
+		Added:          filterDepsByTestStatus(result.Added, afterTestOnly, wantTestOnly),
+		Removed:        filterDepsByTestStatus(result.Removed, beforeTestOnly, wantTestOnly),
 		EdgesAdded:     filterEdgesByTestStatus(result.EdgesAdded, afterTestOnly, wantTestOnly),
 		EdgesRemoved:   filterEdgesByTestStatus(result.EdgesRemoved, beforeTestOnly, wantTestOnly),
 		VersionChanges: filterVersionChangesByTestStatus(result.VersionChanges, afterTestOnly, wantTestOnly),
@@ -425,6 +425,8 @@ func outputText(result DiffResult) error {
 	}
 	fmt.Println(strings.Repeat("=", 50))
 	fmt.Println()
+
+	printSummary(result)
 
 	// Metrics table
 	fmt.Println("Metrics:")
@@ -538,6 +540,14 @@ func outputText(result DiffResult) error {
 			fmt.Printf("Vendor Version Changes (%d):\n", len(v.VersionChanges))
 			for _, vc := range v.VersionChanges {
 				fmt.Printf("  ~ %-50s %s → %s\n", vc.Path, vc.Before, vc.After)
+			}
+			fmt.Println()
+		}
+
+		if len(v.VendorOnlyRemovals) > 0 {
+			fmt.Printf("Vendor-only Removals (%d):\n", len(v.VendorOnlyRemovals))
+			for _, m := range v.VendorOnlyRemovals {
+				fmt.Printf("  - %-50s %s\n", m.Path, m.Version)
 			}
 			fmt.Println()
 		}
@@ -772,6 +782,56 @@ func computeVendorDiff(baseSHA, headSHA string, includeFiles bool) (*VendorDiffR
 	}
 
 	return result, nil
+}
+
+func computeVendorOnlyRemovals(vendorRemoved []VendorModule, graphRemoved []string) []VendorModule {
+	removedFromGraph := make(map[string]bool, len(graphRemoved))
+	for _, dep := range graphRemoved {
+		removedFromGraph[dep] = true
+	}
+	var out []VendorModule
+	for _, m := range vendorRemoved {
+		if !removedFromGraph[m.Path] {
+			out = append(out, m)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
+	return out
+}
+
+func printSummary(result DiffResult) {
+	fmt.Println("Summary:")
+	fmt.Printf("  Module graph: +%d added, -%d removed, ~%d version changes\n",
+		len(result.Added), len(result.Removed), len(result.VersionChanges))
+	if result.Split != nil {
+		fmt.Printf("  Non-test:     +%d added, -%d removed, ~%d version changes\n",
+			len(result.Split.NonTestOnly.Added), len(result.Split.NonTestOnly.Removed), len(result.Split.NonTestOnly.VersionChanges))
+		fmt.Printf("  Test-only:    +%d added, -%d removed, ~%d version changes\n",
+			len(result.Split.TestOnly.Added), len(result.Split.TestOnly.Removed), len(result.Split.TestOnly.VersionChanges))
+	}
+	if result.Vendor != nil {
+		v := result.Vendor
+		fmt.Printf("  Vendor:       +%d added, -%d removed, ~%d version changes\n",
+			len(v.Added), len(v.Removed), len(v.VersionChanges))
+		if len(v.FilesAdded) > 0 || len(v.FilesDeleted) > 0 {
+			fmt.Printf("  Vendor files: +%d added, -%d deleted\n", len(v.FilesAdded), len(v.FilesDeleted))
+		}
+	}
+	fmt.Println("  Key events:")
+	if len(result.VersionChanges) > 0 && len(result.Added) == 0 && len(result.Removed) == 0 {
+		fmt.Println("    - Dependency set unchanged, but versions changed")
+	}
+	if result.Vendor != nil && len(result.Vendor.VendorOnlyRemovals) > 0 {
+		fmt.Printf("    - %d modules removed from vendor but still in module graph\n", len(result.Vendor.VendorOnlyRemovals))
+	}
+	if result.Vendor != nil && len(result.Vendor.FilesDeleted) > 0 {
+		fmt.Printf("    - %d vendored Go files deleted (possible API removals)\n", len(result.Vendor.FilesDeleted))
+	}
+	if len(result.VersionChanges) == 0 && len(result.Added) == 0 && len(result.Removed) == 0 &&
+		(result.Vendor == nil || (len(result.Vendor.VersionChanges) == 0 && len(result.Vendor.Added) == 0 && len(result.Vendor.Removed) == 0 && len(result.Vendor.FilesDeleted) == 0 && len(result.Vendor.FilesAdded) == 0)) {
+		fmt.Println("    - No dependency changes detected")
+	}
+	fmt.Println()
 }
 
 func init() {

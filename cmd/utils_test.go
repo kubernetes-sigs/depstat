@@ -529,6 +529,54 @@ func Test_parseVendorModulesTxt_empty(t *testing.T) {
 	}
 }
 
+func Test_parseVendorModulesTxt_replacementWithoutVersion(t *testing.T) {
+	content := `# example.com/mod => ../local/mod
+## explicit
+example.com/mod
+# example.com/dep v1.2.3
+## explicit
+example.com/dep
+`
+	modules := parseVendorModulesTxt(content)
+	if len(modules) != 1 {
+		t.Fatalf("expected 1 module, got %d: %v", len(modules), modules)
+	}
+	if modules[0].Path != "example.com/dep" || modules[0].Version != "v1.2.3" {
+		t.Errorf("module 0: got %+v", modules[0])
+	}
+}
+
+func Test_computeVendorOnlyRemovals(t *testing.T) {
+	vendorRemoved := []VendorModule{
+		{Path: "github.com/a", Version: "v1.0.0"},
+		{Path: "github.com/b", Version: "v1.0.0"},
+		{Path: "github.com/c", Version: "v1.0.0"},
+	}
+	graphRemoved := []string{"github.com/b"}
+	got := computeVendorOnlyRemovals(vendorRemoved, graphRemoved)
+	if len(got) != 2 {
+		t.Fatalf("expected 2 vendor-only removals, got %d: %v", len(got), got)
+	}
+	if got[0].Path != "github.com/a" || got[1].Path != "github.com/c" {
+		t.Fatalf("unexpected vendor-only removals: %v", got)
+	}
+}
+
+func Test_versionGreater(t *testing.T) {
+	if !versionGreater("v1.10.0", "v1.9.0") {
+		t.Fatalf("expected semver comparison to treat v1.10.0 > v1.9.0")
+	}
+	if versionGreater("v1.9.0", "v1.10.0") {
+		t.Fatalf("expected semver comparison to treat v1.9.0 < v1.10.0")
+	}
+	if !versionGreater("z-non-semver", "a-non-semver") {
+		t.Fatalf("expected lexical fallback to compare non-semver strings")
+	}
+	if versionGreater("v1.2.3", "v1.2.3") {
+		t.Fatalf("equal versions should not compare as greater")
+	}
+}
+
 func Test_computeVersionChanges(t *testing.T) {
 	base := &DependencyOverview{
 		DirectDepList: []string{"B", "C", "D"},

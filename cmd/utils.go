@@ -22,6 +22,7 @@ import (
 	"log"
 	"os/exec"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -353,7 +354,7 @@ func generateGraph(goModGraphOutputString string, mainModules []string) Dependen
 	effectiveVersions := map[string]string{}
 	for _, mm := range versionedMainModules {
 		for _, m := range versionedGraph[mm] {
-			if effectiveVersions[m.name] < m.version {
+			if versionGreater(m.version, effectiveVersions[m.name]) {
 				effectiveVersions[m.name] = m.version
 			}
 		}
@@ -381,7 +382,7 @@ func generateGraph(goModGraphOutputString string, mainModules []string) Dependen
 		}
 		// mark as reachable
 		reachableModules[v.name] = from
-		if effectiveVersion, ok := effectiveVersions[v.name]; ok && effectiveVersion > v.version {
+		if effectiveVersion, ok := effectiveVersions[v.name]; ok && versionGreater(effectiveVersion, v.version) {
 			// replace with the effective version if applicable
 			v.version = effectiveVersion
 		} else {
@@ -433,4 +434,72 @@ func generateGraph(goModGraphOutputString string, mainModules []string) Dependen
 	depGraph.Versions = effectiveVersions
 
 	return depGraph
+}
+
+// versionGreater compares module versions with numeric major/minor/patch
+// ordering for v-prefixed semver-like versions and falls back to lexical
+// ordering for non-semver fixtures.
+func versionGreater(a, b string) bool {
+	if a == b {
+		return false
+	}
+	if cmp, ok := compareSemverLike(a, b); ok {
+		return cmp > 0
+	}
+	return a > b
+}
+
+func compareSemverLike(a, b string) (int, bool) {
+	pa, oka := parseSemverLike(a)
+	pb, okb := parseSemverLike(b)
+	if !oka || !okb {
+		return 0, false
+	}
+	for i := 0; i < 3; i++ {
+		if pa[i] < pb[i] {
+			return -1, true
+		}
+		if pa[i] > pb[i] {
+			return 1, true
+		}
+	}
+	// Preserve deterministic ordering for equal numeric versions with different
+	// suffixes (e.g., pseudo-version timestamps/prerelease metadata).
+	switch {
+	case a < b:
+		return -1, true
+	case a > b:
+		return 1, true
+	default:
+		return 0, true
+	}
+}
+
+func parseSemverLike(v string) ([3]int, bool) {
+	var out [3]int
+	if len(v) < 2 || v[0] != 'v' {
+		return out, false
+	}
+	core := strings.TrimPrefix(v, "v")
+	if idx := strings.IndexAny(core, "-+"); idx >= 0 {
+		core = core[:idx]
+	}
+	parts := strings.Split(core, ".")
+	if len(parts) < 2 {
+		return out, false
+	}
+	if len(parts) == 2 {
+		parts = append(parts, "0")
+	}
+	if len(parts) != 3 {
+		return out, false
+	}
+	for i := range 3 {
+		n, err := strconv.Atoi(parts[i])
+		if err != nil {
+			return out, false
+		}
+		out[i] = n
+	}
+	return out, true
 }
