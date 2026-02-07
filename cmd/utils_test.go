@@ -685,3 +685,33 @@ D@v2 G@v2`, mainModules)
 		t.Errorf("Expected transitive dependencies are %s but got %s", transitiveDependencyList, depGraph.TransDepList)
 	}
 }
+
+func Test_generateGraph_skipsMalformedLines(t *testing.T) {
+	depGraph := generateGraph(`A B@v1.0.0
+malformed
+
+go@1.22.0 toolchain@go1.22.0
+A C@v1.0.0`, nil)
+
+	if len(depGraph.MainModules) == 0 || depGraph.MainModules[0] != "A" {
+		t.Fatalf("expected main module A, got %v", depGraph.MainModules)
+	}
+	if !contains(depGraph.DirectDepList, "B") || !contains(depGraph.DirectDepList, "C") {
+		t.Fatalf("expected B and C to be direct deps, got %v", depGraph.DirectDepList)
+	}
+}
+
+func Test_computeStats_noMainModule(t *testing.T) {
+	stats := computeStats(&DependencyOverview{
+		Graph:         map[string][]string{"A": []string{"B"}},
+		DirectDepList: []string{"B"},
+		TransDepList:  []string{},
+		MainModules:   nil,
+	})
+	if stats.MaxDepth != 0 {
+		t.Fatalf("expected max depth 0 when no main module, got %d", stats.MaxDepth)
+	}
+	if stats.TotalDeps != 1 || stats.DirectDeps != 1 || stats.TransDeps != 0 {
+		t.Fatalf("unexpected stats: %+v", stats)
+	}
+}

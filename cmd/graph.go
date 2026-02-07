@@ -40,6 +40,9 @@ var graphCmd = &cobra.Command{
 	- Transitive edges (dashed gray): dependencies of dependencies`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		overview := getDepInfo(mainModules)
+		if len(overview.MainModules) == 0 {
+			return fmt.Errorf("could not determine main module; run from a Go module directory or set --mainModules")
+		}
 		// strict ensures that there is only one edge between two vertices
 		// overlap = false ensures the vertices don't overlap
 		fileContents := "strict digraph {\ngraph [overlap=false];\n"
@@ -114,6 +117,9 @@ func getFileContentsForAllDeps(overview *DependencyOverview) string {
 
 // getFileContentsForAllDepsWithTypes generates DOT content with optional edge type annotations
 func getFileContentsForAllDepsWithTypes(overview *DependencyOverview, showTypes bool) string {
+	if len(overview.MainModules) == 0 {
+		return ""
+	}
 	// color the main module as yellow
 	data := colorMainNode(overview.MainModules[0])
 
