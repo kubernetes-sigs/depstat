@@ -147,7 +147,7 @@ func runArchived(cmd *cobra.Command, args []string) error {
 	}
 
 	// Phase 1: list all module dependencies
-	modules, err := listAllModules()
+	modules, err := listAllModules(mainModules)
 	if err != nil {
 		return fmt.Errorf("listing modules: %w", err)
 	}
@@ -265,8 +265,9 @@ func outputArchivedText(result ArchivedResult, warnings []string) error {
 }
 
 // listAllModules runs `go list -m -json all` in the configured directory
-// and returns parsed module info.
-func listAllModules() ([]goModule, error) {
+// and returns parsed module info. If selectedMainModules is non-empty, it
+// filters to dependencies reachable from those main modules.
+func listAllModules(selectedMainModules []string) ([]goModule, error) {
 	goListCmd := exec.Command("go", "list", "-m", "-json", "all")
 	if dir != "" {
 		goListCmd.Dir = dir
@@ -292,7 +293,27 @@ func listAllModules() ([]goModule, error) {
 		}
 		modules = append(modules, mod)
 	}
-	return modules, nil
+	if len(selectedMainModules) == 0 {
+		return modules, nil
+	}
+
+	depGraph := getDepInfo(selectedMainModules)
+	reachable := make(map[string]bool)
+	for _, dep := range getAllDeps(depGraph.DirectDepList, depGraph.TransDepList) {
+		reachable[dep] = true
+	}
+
+	filtered := make([]goModule, 0, len(reachable))
+	for _, mod := range modules {
+		if !reachable[mod.Path] {
+			continue
+		}
+		if version := depGraph.Versions[mod.Path]; version != "" {
+			mod.Version = version
+		}
+		filtered = append(filtered, mod)
+	}
+	return filtered, nil
 }
 
 // extractGitHubRepo extracts "owner/repo" from a github.com module path.
@@ -531,5 +552,6 @@ func init() {
 	rootCmd.AddCommand(archivedCmd)
 	archivedCmd.Flags().StringVarP(&dir, "dir", "d", "", "Directory containing the module to evaluate. Defaults to the current directory.")
 	archivedCmd.Flags().BoolVarP(&jsonOutput, "json", "j", false, "Get the output in JSON format")
+	archivedCmd.Flags().StringSliceVarP(&mainModules, "mainModules", "m", []string{}, "Specify main modules")
 	archivedCmd.Flags().StringVar(&githubTokenPath, "github-token-path", "", "Path to a file containing the GitHub API token. If not set, uses GITHUB_TOKEN env var.")
 }

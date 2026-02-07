@@ -131,7 +131,7 @@ func getAllChains(currentDep string, graph map[string][]string, currentChain Cha
 }
 
 // get the contents of the .dot file for the graph
-// when the -d flag is set
+// when the --dep flag is set
 func getFileContentsForSingleDep(chains []Chain, dep string) string {
 	// to color the entered node as yellow
 	data := colorMainNode(dep)
@@ -154,7 +154,7 @@ func getFileContentsForSingleDep(chains []Chain, dep string) string {
 }
 
 // get the contents of the .dot file for the graph
-// of all dependencies (when -d is not set)
+// of all dependencies (when --dep is not set)
 func getFileContentsForAllDeps(overview *DependencyOverview) string {
 	return getFileContentsForAllDepsWithTypes(overview, false)
 }
@@ -227,7 +227,8 @@ func colorMainNode(mainNode string) string {
 
 func init() {
 	rootCmd.AddCommand(graphCmd)
-	graphCmd.Flags().StringVarP(&dep, "dep", "d", "", "Specify dependency to create a graph around")
+	graphCmd.Flags().StringVarP(&dir, "dir", "d", "", "Directory containing the module to evaluate. Defaults to the current directory.")
+	graphCmd.Flags().StringVarP(&dep, "dep", "p", "", "Specify dependency to create a graph around")
 	graphCmd.Flags().BoolVar(&showEdgeTypes, "show-edge-types", false, "Distinguish direct vs transitive edges with colors/styles")
 	graphCmd.Flags().BoolVar(&graphDotOutput, "dot", false, "Output DOT graph to stdout")
 	graphCmd.Flags().BoolVarP(&graphJSONOutput, "json", "j", false, "Output graph data in JSON format")
