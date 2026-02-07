@@ -42,7 +42,10 @@ type WhyResult struct {
 	TotalPaths  int       `json:"totalPaths,omitempty"`
 }
 
-const whyDefaultTextPaths = 20
+const (
+	whyDefaultTextPaths = 20
+	whyDefaultMaxPaths  = 1000
+)
 
 var whyMaxPaths int
 
@@ -299,6 +302,6 @@ func init() {
 	whyCmd.Flags().BoolVarP(&jsonOutput, "json", "j", false, "Output in JSON format")
 	whyCmd.Flags().BoolVarP(&dotOutput, "dot", "", false, "Output in DOT format for Graphviz")
 	whyCmd.Flags().BoolVarP(&svgOutput, "svg", "s", false, "Output as self-contained SVG diagram")
-	whyCmd.Flags().IntVar(&whyMaxPaths, "max-paths", 0, "Maximum dependency paths to search. 0 means no limit")
+	whyCmd.Flags().IntVar(&whyMaxPaths, "max-paths", whyDefaultMaxPaths, "Maximum dependency paths to search. Set 0 for no limit")
 	whyCmd.Flags().StringSliceVarP(&mainModules, "mainModules", "m", []string{}, "Specify main modules")
 }
