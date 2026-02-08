@@ -78,6 +78,9 @@ var graphCmd = &cobra.Command{
 		if graphTopMode != "" && graphTopN <= 0 {
 			return fmt.Errorf("-n must be > 0")
 		}
+		if graphTopMode != "" && graphTopN <= 0 {
+			return fmt.Errorf("-n must be > 0")
+		}
 		overview := getDepInfo(mainModules)
 		if len(overview.MainModules) == 0 {
 			return fmt.Errorf("could not determine main module; run from a Go module directory or set --mainModules")

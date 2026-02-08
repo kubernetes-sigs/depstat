@@ -76,6 +76,10 @@ func Test_buildRankings(t *testing.T) {
 		{Module: "B", InDegree: 3, OutDegree: 4},
 		{Module: "C", InDegree: 10, OutDegree: 2},
 	}
+	// n=0 should return empty slices
+	if got := buildRankings(nodes, "both", 0); len(got.In) != 0 || len(got.Out) != 0 {
+		t.Fatalf("expected empty rankings for n=0, got in=%d out=%d", len(got.In), len(got.Out))
+	}
 	r := buildRankings(nodes, "both", 2)
 	if len(r.In) != 2 {
 		t.Errorf("expected 2 in rankings, got %d", len(r.In))
