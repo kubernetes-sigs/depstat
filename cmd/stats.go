@@ -29,6 +29,7 @@ var csvOutput bool
 var verbose bool
 var mainModules []string
 var splitTestOnly bool
+var excludeModules []string
 
 type Chain []string
 
@@ -43,6 +44,9 @@ var statsCmd = &cobra.Command{
 	4. Max Depth of Dependencies: Length of the longest chain starting from the first mainModule; defaults to length from the first module encountered in "go mod graph" output`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		depGraph := getDepInfo(mainModules)
+		if len(depGraph.MainModules) == 0 {
+			return fmt.Errorf("no main modules remain after exclusions; adjust --exclude-modules or --mainModules")
+		}
 
 		if len(args) != 0 {
 			return fmt.Errorf("stats does not take any arguments")
@@ -184,5 +188,6 @@ func init() {
 	statsCmd.Flags().BoolVarP(&jsonOutput, "json", "j", false, "Get the output in JSON format")
 	statsCmd.Flags().BoolVarP(&csvOutput, "csv", "c", false, "Get the output in CSV format")
 	statsCmd.Flags().BoolVar(&splitTestOnly, "split-test-only", false, "Split dependency totals into test-only and non-test sections using `go mod why -m`")
+	statsCmd.Flags().StringSliceVar(&excludeModules, "exclude-modules", []string{}, "Exclude module path patterns (repeatable, supports * wildcard)")
 	statsCmd.Flags().StringSliceVarP(&mainModules, "mainModules", "m", []string{}, "Enter modules whose dependencies should be considered direct dependencies; defaults to the first module encountered in `go mod graph` output")
 }

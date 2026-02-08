@@ -83,7 +83,7 @@ var graphCmd = &cobra.Command{
 		}
 		overview := getDepInfo(mainModules)
 		if len(overview.MainModules) == 0 {
-			return fmt.Errorf("could not determine main module; run from a Go module directory or set --mainModules")
+			return fmt.Errorf("no main modules remain after exclusions; adjust --exclude-modules or --mainModules")
 		}
 		nodes, edgeObjects := buildGraphTopology(overview)
 
@@ -435,6 +435,7 @@ func init() {
 	graphCmd.Flags().BoolVarP(&graphJSONOutput, "json", "j", false, "Output graph data in JSON format")
 	graphCmd.Flags().StringVar(&graphTopMode, "top", "", "Show top modules by degree: in, out, or both")
 	graphCmd.Flags().IntVarP(&graphTopN, "n", "n", 10, "Number of modules to show with --top")
+	graphCmd.Flags().StringSliceVar(&excludeModules, "exclude-modules", []string{}, "Exclude module path patterns (repeatable, supports * wildcard)")
 	graphCmd.Flags().StringVar(&graphOutputPath, "output", "graph.dot", "Path to DOT output file when not using --dot or --json")
 	graphCmd.Flags().StringSliceVarP(&mainModules, "mainModules", "m", []string{}, "Specify main modules")
 }

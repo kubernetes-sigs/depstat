@@ -141,6 +141,27 @@ grep -q '^example.com/a$' list.txt \
 grep -q '^example.com/c$' list.txt \
   || { echo "FAIL: list missing example.com/c"; exit 1; }
 
+echo "==> Testing stats --exclude-modules..."
+"${DEPSTAT_BIN}" stats --exclude-modules "example.com/b" --json > stats-excl.json
+# With b excluded, should have fewer total dependencies
+excl_total=$(jq '.totalDependencies' stats-excl.json)
+full_total=$(jq '.totalDependencies' stats.json)
+if [[ "${excl_total}" -ge "${full_total}" ]]; then
+  echo "FAIL: --exclude-modules did not reduce dependency count (excl=${excl_total}, full=${full_total})"
+  exit 1
+fi
+
+echo "==> Testing list --exclude-modules..."
+"${DEPSTAT_BIN}" list --exclude-modules "example.com/b" > list-excl.txt
+if grep -q '^example.com/b$' list-excl.txt; then
+  echo "FAIL: --exclude-modules should have removed example.com/b from list"
+  exit 1
+fi
+if ! grep -q '^example.com/a$' list-excl.txt; then
+  echo "FAIL: --exclude-modules should NOT have removed example.com/a"
+  exit 1
+fi
+
 echo "==> Testing graph --show-edge-types..."
 "${DEPSTAT_BIN}" graph --show-edge-types
 [[ -s graph.dot ]] \

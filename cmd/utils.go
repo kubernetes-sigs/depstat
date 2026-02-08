@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -85,6 +86,7 @@ func getDepInfo(mainModules []string) *DependencyOverview {
 
 	// create a graph of dependencies from that output
 	depGraph := generateGraph(goModGraphOutputString, mainModules)
+	depGraph = applyModuleExclusions(depGraph, excludeModules)
 	return &depGraph
 }
 
@@ -240,8 +242,8 @@ type VendorModule struct {
 
 // gitShowFile reads a file from a specific git ref.
 // Returns content and true if found, empty string and false if not.
-func gitShowFile(ref, path string) (string, bool) {
-	cmd := exec.Command("git", "show", ref+":"+path)
+func gitShowFile(ref, filePath string) (string, bool) {
+	cmd := exec.Command("git", "show", ref+":"+filePath)
 	if dir != "" {
 		cmd.Dir = dir
 	}
@@ -437,6 +439,109 @@ func generateGraph(goModGraphOutputString string, mainModules []string) Dependen
 	depGraph.Versions = effectiveVersions
 
 	return depGraph
+}
+
+func applyModuleExclusions(depGraph DependencyOverview, patterns []string) DependencyOverview {
+	if len(patterns) == 0 {
+		return depGraph
+	}
+
+	mainModules := make([]string, 0, len(depGraph.MainModules))
+	mainSet := map[string]bool{}
+	for _, m := range depGraph.MainModules {
+		if moduleExcluded(m, patterns) {
+			continue
+		}
+		mainModules = append(mainModules, m)
+		mainSet[m] = true
+	}
+	if len(mainModules) == 0 {
+		return DependencyOverview{
+			Graph:         map[string][]string{},
+			DirectDepList: []string{},
+			TransDepList:  []string{},
+			MainModules:   []string{},
+			Versions:      map[string]string{},
+		}
+	}
+
+	reachable := map[string]bool{}
+	queue := append([]string{}, mainModules...)
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+		if reachable[current] {
+			continue
+		}
+		reachable[current] = true
+		for _, next := range depGraph.Graph[current] {
+			if moduleExcluded(next, patterns) {
+				continue
+			}
+			if !reachable[next] {
+				queue = append(queue, next)
+			}
+		}
+	}
+
+	filteredGraph := map[string][]string{}
+	directSeen := map[string]bool{}
+	transSeen := map[string]bool{}
+	var directDeps []string
+	var transDeps []string
+	for lhs, rhsList := range depGraph.Graph {
+		if !reachable[lhs] {
+			continue
+		}
+		for _, rhs := range rhsList {
+			if !reachable[rhs] {
+				continue
+			}
+			filteredGraph[lhs] = append(filteredGraph[lhs], rhs)
+			if mainSet[lhs] {
+				if !mainSet[rhs] && !directSeen[rhs] {
+					directSeen[rhs] = true
+					directDeps = append(directDeps, rhs)
+				}
+				continue
+			}
+			if !mainSet[rhs] && !transSeen[rhs] {
+				transSeen[rhs] = true
+				transDeps = append(transDeps, rhs)
+			}
+		}
+	}
+	sort.Strings(directDeps)
+	sort.Strings(transDeps)
+
+	filteredVersions := map[string]string{}
+	for module, version := range depGraph.Versions {
+		if reachable[module] {
+			filteredVersions[module] = version
+		}
+	}
+
+	return DependencyOverview{
+		Graph:         filteredGraph,
+		DirectDepList: directDeps,
+		TransDepList:  transDeps,
+		MainModules:   mainModules,
+		Versions:      filteredVersions,
+	}
+}
+
+func moduleExcluded(modulePath string, patterns []string) bool {
+	for _, pattern := range patterns {
+		if matchModulePattern(modulePath, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+func matchModulePattern(modulePath, pattern string) bool {
+	matched, err := path.Match(pattern, modulePath)
+	return err == nil && matched
 }
 
 // versionGreater compares module versions with numeric major/minor/patch
