@@ -715,3 +715,159 @@ func Test_computeStats_noMainModule(t *testing.T) {
 		t.Fatalf("unexpected stats: %+v", stats)
 	}
 }
+
+func Test_matchModulePattern(t *testing.T) {
+	tests := []struct {
+		module  string
+		pattern string
+		want    bool
+	}{
+		// Exact match
+		{"example.com/a", "example.com/a", true},
+		// Single segment wildcard
+		{"go.etcd.io/etcd/tools/v3", "go.etcd.io/etcd/tools/*", true},
+		{"go.etcd.io/etcd/server/v3", "go.etcd.io/etcd/*/v3", true},
+		{"go.etcd.io/etcd/client/v3", "go.etcd.io/etcd/*/v3", true},
+		// Should NOT match across segments
+		{"go.etcd.io/etcd/server/v3", "go.etcd.io/etcd/*", false},
+		// No match
+		{"example.com/b", "example.com/a", false},
+		{"foo.com/x", "bar.com/*", false},
+	}
+	for _, tt := range tests {
+		got := matchModulePattern(tt.module, tt.pattern)
+		if got != tt.want {
+			t.Errorf("matchModulePattern(%q, %q) = %v, want %v", tt.module, tt.pattern, got, tt.want)
+		}
+	}
+}
+
+func Test_applyModuleExclusions_empty(t *testing.T) {
+	original := DependencyOverview{
+		MainModules:   []string{"main"},
+		DirectDepList: []string{"A", "B"},
+		TransDepList:  []string{"C"},
+		Graph:         map[string][]string{"main": {"A", "B"}, "A": {"C"}, "B": {"C"}},
+		Versions:      map[string]string{"A": "v1.0.0", "B": "v2.0.0", "C": "v3.0.0"},
+	}
+	// No exclusions -- should return identical
+	result := applyModuleExclusions(original, []string{})
+	if len(result.DirectDepList) != 2 || len(result.TransDepList) != 1 {
+		t.Errorf("empty exclusion should not change results")
+	}
+}
+
+func Test_applyModuleExclusions_removeLeaf(t *testing.T) {
+	original := DependencyOverview{
+		MainModules:   []string{"main"},
+		DirectDepList: []string{"A", "B"},
+		TransDepList:  []string{"C"},
+		Graph: map[string][]string{
+			"main": {"A", "B"},
+			"A":    {"C"},
+			"B":    {},
+		},
+		Versions: map[string]string{"A": "v1.0.0", "B": "v2.0.0", "C": "v3.0.0"},
+	}
+	// Exclude B -- B is a leaf, should just remove B
+	result := applyModuleExclusions(original, []string{"B"})
+	if contains(result.DirectDepList, "B") {
+		t.Errorf("B should be excluded from direct deps")
+	}
+	// A and C should remain (reachable from main -> A -> C)
+	if !contains(result.DirectDepList, "A") {
+		t.Errorf("A should remain in direct deps")
+	}
+}
+
+func Test_applyModuleExclusions_removeWithSubgraph(t *testing.T) {
+	original := DependencyOverview{
+		MainModules:   []string{"main"},
+		DirectDepList: []string{"A", "B"},
+		TransDepList:  []string{"C", "D"},
+		Graph: map[string][]string{
+			"main": {"A", "B"},
+			"A":    {"C"},
+			"B":    {"D"},
+			"C":    {},
+			"D":    {},
+		},
+		Versions: map[string]string{"A": "v1.0.0", "B": "v2.0.0", "C": "v3.0.0", "D": "v4.0.0"},
+	}
+	// Exclude B -- should also remove D (unique transitive of B)
+	result := applyModuleExclusions(original, []string{"B"})
+	if contains(result.DirectDepList, "B") || contains(result.TransDepList, "D") {
+		t.Errorf("B and its unique transitive D should be removed")
+	}
+	if !contains(result.DirectDepList, "A") || !contains(result.TransDepList, "C") {
+		t.Errorf("A and C should remain")
+	}
+}
+
+func Test_applyModuleExclusions_sharedTransitive(t *testing.T) {
+	original := DependencyOverview{
+		MainModules:   []string{"main"},
+		DirectDepList: []string{"A", "B"},
+		TransDepList:  []string{"shared"},
+		Graph: map[string][]string{
+			"main": {"A", "B"},
+			"A":    {"shared"},
+			"B":    {"shared"},
+		},
+		Versions: map[string]string{"A": "v1.0.0", "B": "v2.0.0", "shared": "v3.0.0"},
+	}
+	// Exclude A -- shared is still reachable through B, so should remain
+	result := applyModuleExclusions(original, []string{"A"})
+	if contains(result.DirectDepList, "A") {
+		t.Errorf("A should be excluded")
+	}
+	// shared should still be reachable via B
+	allDeps := append(result.DirectDepList, result.TransDepList...)
+	if !contains(allDeps, "shared") {
+		t.Errorf("shared should remain (reachable through B)")
+	}
+}
+
+func Test_applyModuleExclusions_wildcard(t *testing.T) {
+	original := DependencyOverview{
+		MainModules:   []string{"main"},
+		DirectDepList: []string{"example.com/tools/v3", "example.com/core"},
+		TransDepList:  []string{"example.com/tools/v3/lint"},
+		Graph: map[string][]string{
+			"main":                 {"example.com/tools/v3", "example.com/core"},
+			"example.com/tools/v3": {"example.com/tools/v3/lint"},
+		},
+		Versions: map[string]string{},
+	}
+	result := applyModuleExclusions(original, []string{"example.com/tools/*"})
+	if contains(result.DirectDepList, "example.com/tools/v3") {
+		t.Errorf("tools/v3 should be excluded by wildcard")
+	}
+	if !contains(result.DirectDepList, "example.com/core") {
+		t.Errorf("core should remain")
+	}
+}
+
+func Test_applyModuleExclusions_excludeMainModule(t *testing.T) {
+	original := DependencyOverview{
+		MainModules:   []string{"main1", "main2"},
+		DirectDepList: []string{"A"},
+		TransDepList:  []string{},
+		Graph: map[string][]string{
+			"main1": {"A"},
+			"main2": {"A"},
+		},
+		Versions: map[string]string{"A": "v1.0.0"},
+	}
+	// Exclude main1 -- main2 should still work
+	result := applyModuleExclusions(original, []string{"main1"})
+	if contains(result.MainModules, "main1") {
+		t.Errorf("main1 should be excluded")
+	}
+	if !contains(result.MainModules, "main2") {
+		t.Errorf("main2 should remain")
+	}
+	if !contains(result.DirectDepList, "A") {
+		t.Errorf("A should remain (reachable from main2)")
+	}
+}

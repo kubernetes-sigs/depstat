@@ -435,6 +435,7 @@ func init() {
 	graphCmd.Flags().BoolVarP(&graphJSONOutput, "json", "j", false, "Output graph data in JSON format")
 	graphCmd.Flags().StringVar(&graphTopMode, "top", "", "Show top modules by degree: in, out, or both")
 	graphCmd.Flags().IntVarP(&graphTopN, "n", "n", 10, "Number of modules to show with --top")
+	graphCmd.Flags().StringSliceVar(&excludeModules, "exclude-modules", []string{}, "Exclude module path patterns (repeatable, supports * wildcard)")
 	graphCmd.Flags().StringVar(&graphOutputPath, "output", "graph.dot", "Path to DOT output file when not using --dot or --json")
 	graphCmd.Flags().StringSliceVarP(&mainModules, "mainModules", "m", []string{}, "Specify main modules")
 }

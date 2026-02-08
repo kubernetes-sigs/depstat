@@ -110,6 +110,7 @@ func init() {
 	rootCmd.AddCommand(listCmd)
 	listCmd.Flags().StringVarP(&dir, "dir", "d", "", "Directory containing the module to evaluate. Defaults to the current directory.")
 	listCmd.Flags().StringSliceVarP(&mainModules, "mainModules", "m", []string{}, "Specify main modules")
+	listCmd.Flags().StringSliceVar(&excludeModules, "exclude-modules", []string{}, "Exclude module path patterns (repeatable, supports * wildcard)")
 	listCmd.Flags().BoolVarP(&listJSONOutput, "json", "j", false, "Get the output in JSON format")
 	listCmd.Flags().BoolVar(&listSplitTestOnly, "split-test-only", false, "Split list into test-only and non-test sections (uses go mod why -m)")
 }

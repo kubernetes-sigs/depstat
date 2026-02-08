@@ -29,6 +29,7 @@ var csvOutput bool
 var verbose bool
 var mainModules []string
 var splitTestOnly bool
+var excludeModules []string
 
 type Chain []string
 
@@ -184,5 +185,6 @@ func init() {
 	statsCmd.Flags().BoolVarP(&jsonOutput, "json", "j", false, "Get the output in JSON format")
 	statsCmd.Flags().BoolVarP(&csvOutput, "csv", "c", false, "Get the output in CSV format")
 	statsCmd.Flags().BoolVar(&splitTestOnly, "split-test-only", false, "Split dependency totals into test-only and non-test sections using `go mod why -m`")
+	statsCmd.Flags().StringSliceVar(&excludeModules, "exclude-modules", []string{}, "Exclude module path patterns (repeatable, supports * wildcard)")
 	statsCmd.Flags().StringSliceVarP(&mainModules, "mainModules", "m", []string{}, "Enter modules whose dependencies should be considered direct dependencies; defaults to the first module encountered in `go mod graph` output")
 }
