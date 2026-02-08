@@ -251,6 +251,29 @@ if jq -e '.split.nonTestOnly.added | any(. == "example.com/t")' diff-split.json 
   exit 1
 fi
 
+
+echo "==> Testing graph --json (topology fields)..."
+"${DEPSTAT_BIN}" graph --json > graph-topo.json
+jq -e '.nodes != null and (.nodes | length > 0)' graph-topo.json >/dev/null \
+  || { echo "FAIL: graph --json missing nodes array"; exit 1; }
+jq -e '.edgeObjects != null and (.edgeObjects | length > 0)' graph-topo.json >/dev/null \
+  || { echo "FAIL: graph --json missing edgeObjects array"; exit 1; }
+jq -e '.edgeObjects[0] | has("from") and has("to")' graph-topo.json >/dev/null \
+  || { echo "FAIL: edgeObjects missing from/to fields"; exit 1; }
+
+echo "==> Testing graph --top both..."
+"${DEPSTAT_BIN}" graph --top both > graph-top.txt
+grep -q 'Top by in-degree' graph-top.txt \
+  || { echo "FAIL: graph --top missing in-degree section"; exit 1; }
+grep -q 'Top by out-degree' graph-top.txt \
+  || { echo "FAIL: graph --top missing out-degree section"; exit 1; }
+
+echo "==> Testing graph --top + --dot mutual exclusivity..."
+if "${DEPSTAT_BIN}" graph --top in --dot 2>/dev/null; then
+  echo "FAIL: graph --top --dot should fail"
+  exit 1
+fi
+
 popd >/dev/null
 
 echo "fixture integration checks passed"
