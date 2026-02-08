@@ -73,6 +73,9 @@ var cyclesCmd = &cobra.Command{
 		if summaryOutputCycles && cyclesTopN <= 0 {
 			return fmt.Errorf("-n must be > 0")
 		}
+		if len(overview.MainModules) == 0 {
+			return fmt.Errorf("no main modules remain after exclusions; adjust --exclude-modules or --mainModules")
+		}
 
 		cycles := findAllCyclesWithMaxLength(overview.Graph, maxCycleLength)
 		var summary cycleSummary

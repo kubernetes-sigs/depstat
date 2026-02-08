@@ -40,6 +40,9 @@ var listCmd = &cobra.Command{
 		}
 
 		depGraph := getDepInfo(mainModules)
+		if len(depGraph.MainModules) == 0 {
+			return fmt.Errorf("no main modules remain after exclusions; adjust --exclude-modules or --mainModules")
+		}
 		allDeps := getAllDeps(depGraph.DirectDepList, depGraph.TransDepList)
 		sort.Strings(allDeps)
 

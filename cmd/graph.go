@@ -83,7 +83,7 @@ var graphCmd = &cobra.Command{
 		}
 		overview := getDepInfo(mainModules)
 		if len(overview.MainModules) == 0 {
-			return fmt.Errorf("could not determine main module; run from a Go module directory or set --mainModules")
+			return fmt.Errorf("no main modules remain after exclusions; adjust --exclude-modules or --mainModules")
 		}
 		nodes, edgeObjects := buildGraphTopology(overview)
 
