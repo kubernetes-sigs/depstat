@@ -155,6 +155,21 @@ echo "==> Testing cycles --json..."
 jq -e '.cycles != null' cycles.json >/dev/null \
   || { echo "FAIL: cycles JSON missing .cycles key"; exit 1; }
 
+echo "==> Testing cycles --summary..."
+"${DEPSTAT_BIN}" cycles --summary > cycles-summary.txt
+grep -q 'Total cycles:' cycles-summary.txt \
+  || { echo "FAIL: cycles --summary missing total line"; exit 1; }
+
+echo "==> Testing cycles --summary --json..."
+"${DEPSTAT_BIN}" cycles --summary --json > cycles-summary.json
+jq -e '.summary.totalCycles >= 0' cycles-summary.json >/dev/null \
+  || { echo "FAIL: cycles --summary --json missing summary.totalCycles"; exit 1; }
+
+echo "==> Testing cycles --max-length 2 --json..."
+"${DEPSTAT_BIN}" cycles --max-length 2 --json > cycles-max2.json
+jq -e '.cycles != null' cycles-max2.json >/dev/null \
+  || { echo "FAIL: cycles --max-length 2 --json missing .cycles key"; exit 1; }
+
 echo "==> Testing why --json..."
 "${DEPSTAT_BIN}" why example.com/c --json > why.json
 jq -e '.target == "example.com/c" and .found == true and (.paths | length >= 1)' why.json >/dev/null \
@@ -188,6 +203,8 @@ echo "==> Testing diff --json..."
 "${DEPSTAT_BIN}" diff HEAD~1 HEAD --json > diff.json
 jq -e 'has("before") and has("after") and has("delta")' diff.json >/dev/null \
   || { echo "FAIL: diff JSON missing expected keys"; exit 1; }
+jq -e '.summary.addedCount >= 0 and .summary.removedCount >= 0' diff.json >/dev/null \
+  || { echo "FAIL: diff JSON missing summary counts"; exit 1; }
 
 echo "==> Testing diff --dot..."
 "${DEPSTAT_BIN}" diff HEAD~1 HEAD --dot > diff.dot

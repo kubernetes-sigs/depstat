@@ -90,6 +90,13 @@ type VendorDiffResult struct {
 	FilesDeleted       []string        `json:"filesDeleted,omitempty"`
 }
 
+// DiffSummary holds summary counts for diff JSON output.
+type DiffSummary struct {
+	AddedCount          int `json:"addedCount"`
+	RemovedCount        int `json:"removedCount"`
+	VersionChangesCount int `json:"versionChangesCount"`
+}
+
 // DiffResult holds the complete diff analysis
 type DiffResult struct {
 	Filter         string            `json:"filter,omitempty"`
@@ -108,6 +115,7 @@ type DiffResult struct {
 	EdgesRemoved   []string          `json:"edgesRemoved"`
 	VersionChanges []VersionChange   `json:"versionChanges,omitempty"`
 	Vendor         *VendorDiffResult `json:"vendor,omitempty"`
+	Summary        DiffSummary       `json:"summary"`
 }
 
 var diffCmd = &cobra.Command{
@@ -271,6 +279,12 @@ func runDiff(cmd *cobra.Command, args []string) error {
 			TransDeps:  filteredAfter.TransDeps - filteredBefore.TransDeps,
 			TotalDeps:  filteredAfter.TotalDeps - filteredBefore.TotalDeps,
 		}
+	}
+
+	result.Summary = DiffSummary{
+		AddedCount:          len(result.Added),
+		RemovedCount:        len(result.Removed),
+		VersionChangesCount: len(result.VersionChanges),
 	}
 
 	// Vendor diff

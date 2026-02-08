@@ -20,11 +20,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 
 	"github.com/spf13/cobra"
 )
 
 var jsonOutputCycles bool
+var summaryOutputCycles bool
+var maxCycleLength int
+var cyclesTopN int
 
 // cyclesFinder implements Johnson's algorithm for finding all elementary cycles
 // in a directed graph. Time complexity: O((V+E)(C+1)) where C is the number of cycles.
@@ -36,6 +40,19 @@ type cyclesFinder struct {
 	blockedMap []map[int]bool
 	stack      []int
 	cycles     []Chain
+	maxLength  int
+}
+
+type cycleSummary struct {
+	TotalCycles     int                `json:"totalCycles"`
+	ByLength        map[string]int     `json:"byLength"`
+	TwoNodeCycles   [][]string         `json:"twoNodeCycles"`
+	TopParticipants []cycleParticipant `json:"topParticipants"`
+}
+
+type cycleParticipant struct {
+	Module     string `json:"module"`
+	CycleCount int    `json:"cycleCount"`
 }
 
 // analyzeDepsCmd represents the analyzeDeps command
@@ -50,20 +67,39 @@ var cyclesCmd = &cobra.Command{
 		}
 
 		overview := getDepInfo(mainModules)
-		cycles := findAllCycles(overview.Graph)
+		if maxCycleLength != 0 && maxCycleLength < 2 {
+			return fmt.Errorf("--max-length must be >= 2 (minimum cycle length is 2)")
+		}
+		if summaryOutputCycles && cyclesTopN <= 0 {
+			return fmt.Errorf("-n must be > 0")
+		}
 
-		if !jsonOutputCycles {
+		cycles := findAllCyclesWithMaxLength(overview.Graph, maxCycleLength)
+		var summary cycleSummary
+		if summaryOutputCycles {
+			summary = summarizeCycles(cycles, cyclesTopN)
+		}
+
+		if !jsonOutputCycles && !summaryOutputCycles {
 			fmt.Println("All cycles in dependencies are: ")
 			for _, c := range cycles {
 				printChain(c)
 			}
-		} else {
-			// create json
-			outputObj := struct {
-				Cycles []Chain `json:"cycles"`
-			}{
-				Cycles: cycles,
+		}
+
+		if !jsonOutputCycles && summaryOutputCycles {
+			printCycleSummary(summary)
+		}
+
+		if jsonOutputCycles {
+			outputObj := map[string]interface{}{}
+			if !summaryOutputCycles {
+				outputObj["cycles"] = cycles
 			}
+			if summaryOutputCycles {
+				outputObj["summary"] = summary
+			}
+
 			outputRaw, err := json.MarshalIndent(outputObj, "", "\t")
 			if err != nil {
 				return err
@@ -77,6 +113,10 @@ var cyclesCmd = &cobra.Command{
 // findAllCycles finds all elementary cycles in the graph using Johnson's algorithm.
 // Time complexity: O((V+E)(C+1)) where C is the number of cycles.
 func findAllCycles(graph map[string][]string) []Chain {
+	return findAllCyclesWithMaxLength(graph, 0)
+}
+
+func findAllCyclesWithMaxLength(graph map[string][]string, maxLength int) []Chain {
 	// Collect all nodes
 	nodeSet := make(map[string]bool)
 	for node := range graph {
@@ -109,6 +149,7 @@ func findAllCycles(graph map[string][]string) []Chain {
 		blockedMap: make([]map[int]bool, len(nodes)),
 		stack:      make([]int, 0),
 		cycles:     make([]Chain, 0),
+		maxLength:  maxLength,
 	}
 
 	for i := range cf.blockedMap {
@@ -247,14 +288,16 @@ func (cf *cyclesFinder) circuit(v, start int, sccSet map[int]bool) bool {
 
 		if neighborIdx == start {
 			// Found a cycle
-			cycle := make(Chain, len(cf.stack)+1)
-			for i, idx := range cf.stack {
-				cycle[i] = cf.indexNode[idx]
+			if cf.maxLength == 0 || len(cf.stack) <= cf.maxLength {
+				cycle := make(Chain, len(cf.stack)+1)
+				for i, idx := range cf.stack {
+					cycle[i] = cf.indexNode[idx]
+				}
+				cycle[len(cf.stack)] = cf.indexNode[start]
+				cf.cycles = append(cf.cycles, cycle)
+				found = true
 			}
-			cycle[len(cf.stack)] = cf.indexNode[start]
-			cf.cycles = append(cf.cycles, cycle)
-			found = true
-		} else if !cf.blocked[neighborIdx] {
+		} else if !cf.blocked[neighborIdx] && (cf.maxLength == 0 || len(cf.stack) < cf.maxLength) {
 			if cf.circuit(neighborIdx, start, sccSet) {
 				found = true
 			}
@@ -297,9 +340,106 @@ func containsInt(slice []int, val int) bool {
 	return false
 }
 
+func summarizeCycles(cycles []Chain, topN int) cycleSummary {
+	byLength := map[string]int{}
+	twoNodeSeen := map[string]bool{}
+	var twoNodeCycles [][]string
+	participantCounts := map[string]int{}
+
+	for _, cycle := range cycles {
+		if len(cycle) < 2 {
+			continue
+		}
+		cycleLen := len(cycle) - 1
+		byLength[strconv.Itoa(cycleLen)]++
+
+		seenInCycle := map[string]bool{}
+		for _, module := range cycle[:len(cycle)-1] {
+			if !seenInCycle[module] {
+				participantCounts[module]++
+				seenInCycle[module] = true
+			}
+		}
+
+		if cycleLen == 2 {
+			a, b := cycle[0], cycle[1]
+			if b < a {
+				a, b = b, a
+			}
+			key := a + "|" + b
+			if !twoNodeSeen[key] {
+				twoNodeSeen[key] = true
+				twoNodeCycles = append(twoNodeCycles, []string{a, b})
+			}
+		}
+	}
+
+	sort.Slice(twoNodeCycles, func(i, j int) bool {
+		if twoNodeCycles[i][0] == twoNodeCycles[j][0] {
+			return twoNodeCycles[i][1] < twoNodeCycles[j][1]
+		}
+		return twoNodeCycles[i][0] < twoNodeCycles[j][0]
+	})
+
+	topParticipants := make([]cycleParticipant, 0, len(participantCounts))
+	for module, cycleCount := range participantCounts {
+		topParticipants = append(topParticipants, cycleParticipant{
+			Module:     module,
+			CycleCount: cycleCount,
+		})
+	}
+	sort.Slice(topParticipants, func(i, j int) bool {
+		if topParticipants[i].CycleCount == topParticipants[j].CycleCount {
+			return topParticipants[i].Module < topParticipants[j].Module
+		}
+		return topParticipants[i].CycleCount > topParticipants[j].CycleCount
+	})
+	if len(topParticipants) > topN {
+		topParticipants = topParticipants[:topN]
+	}
+
+	return cycleSummary{
+		TotalCycles:     len(cycles),
+		ByLength:        byLength,
+		TwoNodeCycles:   twoNodeCycles,
+		TopParticipants: topParticipants,
+	}
+}
+
+func printCycleSummary(summary cycleSummary) {
+	fmt.Printf("Total cycles: %d\n", summary.TotalCycles)
+	fmt.Println("By cycle length:")
+	lengths := make([]int, 0, len(summary.ByLength))
+	for s := range summary.ByLength {
+		l, err := strconv.Atoi(s)
+		if err != nil {
+			continue
+		}
+		lengths = append(lengths, l)
+	}
+	sort.Ints(lengths)
+	for _, l := range lengths {
+		key := strconv.Itoa(l)
+		fmt.Printf("- %s: %d\n", key, summary.ByLength[key])
+	}
+
+	fmt.Printf("2-node mutual dependencies: %d\n", len(summary.TwoNodeCycles))
+	for _, pair := range summary.TwoNodeCycles {
+		fmt.Printf("- %s <-> %s\n", pair[0], pair[1])
+	}
+
+	fmt.Println("Top participants:")
+	for _, p := range summary.TopParticipants {
+		fmt.Printf("- %s: %d\n", p.Module, p.CycleCount)
+	}
+}
+
 func init() {
 	rootCmd.AddCommand(cyclesCmd)
 	cyclesCmd.Flags().StringVarP(&dir, "dir", "d", "", "Directory containing the module to evaluate. Defaults to the current directory.")
 	cyclesCmd.Flags().BoolVarP(&jsonOutputCycles, "json", "j", false, "Get the output in JSON format")
+	cyclesCmd.Flags().BoolVar(&summaryOutputCycles, "summary", false, "Show cycle summary instead of raw cycle list")
+	cyclesCmd.Flags().IntVar(&maxCycleLength, "max-length", 0, "Limit cycles to length <= N (0 = no limit)")
+	cyclesCmd.Flags().IntVarP(&cyclesTopN, "top", "n", 10, "Number of top participants to show in summary")
 	cyclesCmd.Flags().StringSliceVarP(&mainModules, "mainModules", "m", []string{}, "Enter modules whose dependencies should be considered direct dependencies; defaults to the first module encountered in `go mod graph` output")
 }
