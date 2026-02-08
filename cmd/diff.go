@@ -252,12 +252,6 @@ func runDiff(cmd *cobra.Command, args []string) error {
 		VersionChanges: computeVersionChanges(baseDepGraph, headDepGraph),
 	}
 
-	result.Summary = DiffSummary{
-		AddedCount:          len(result.Added),
-		RemovedCount:        len(result.Removed),
-		VersionChangesCount: len(result.VersionChanges),
-	}
-
 	// Build split view
 	if diffSplitTestOnly {
 		result.Split = buildSplitResult(result, baseDepGraph, headDepGraph, baseTestOnly, headTestOnly)
@@ -285,6 +279,12 @@ func runDiff(cmd *cobra.Command, args []string) error {
 			TransDeps:  filteredAfter.TransDeps - filteredBefore.TransDeps,
 			TotalDeps:  filteredAfter.TotalDeps - filteredBefore.TotalDeps,
 		}
+	}
+
+	result.Summary = DiffSummary{
+		AddedCount:          len(result.Added),
+		RemovedCount:        len(result.Removed),
+		VersionChangesCount: len(result.VersionChanges),
 	}
 
 	// Vendor diff

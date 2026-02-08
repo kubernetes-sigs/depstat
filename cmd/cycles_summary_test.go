@@ -84,6 +84,11 @@ func TestSummarizeCycles_TopN(t *testing.T) {
 		{"C", "D", "C"},
 		{"E", "F", "E"},
 	}
+	// topN=0 should return empty list
+	summaryZero := summarizeCycles(cycles, 0)
+	if len(summaryZero.TopParticipants) != 0 {
+		t.Fatalf("expected 0 top participants with topN=0, got %d", len(summaryZero.TopParticipants))
+	}
 	summary := summarizeCycles(cycles, 2)
 	if len(summary.TopParticipants) != 2 {
 		t.Fatalf("expected 2 top participants with topN=2, got %d", len(summary.TopParticipants))

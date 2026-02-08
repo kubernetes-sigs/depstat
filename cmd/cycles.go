@@ -70,9 +70,15 @@ var cyclesCmd = &cobra.Command{
 		if maxCycleLength != 0 && maxCycleLength < 2 {
 			return fmt.Errorf("--max-length must be >= 2 (minimum cycle length is 2)")
 		}
+		if summaryOutputCycles && cyclesTopN <= 0 {
+			return fmt.Errorf("-n must be > 0")
+		}
 
 		cycles := findAllCyclesWithMaxLength(overview.Graph, maxCycleLength)
-		summary := summarizeCycles(cycles, cyclesTopN)
+		var summary cycleSummary
+		if summaryOutputCycles {
+			summary = summarizeCycles(cycles, cyclesTopN)
+		}
 
 		if !jsonOutputCycles && !summaryOutputCycles {
 			fmt.Println("All cycles in dependencies are: ")
