@@ -4,9 +4,9 @@ import "testing"
 
 func TestFindAllCyclesWithMaxLength(t *testing.T) {
 	graph := map[string][]string{
-		"A": []string{"B", "C"},
-		"B": []string{"A", "C"},
-		"C": []string{"A"},
+		"A": {"B", "C"},
+		"B": {"A", "C"},
+		"C": {"A"},
 	}
 
 	all := findAllCyclesWithMaxLength(graph, 0)
