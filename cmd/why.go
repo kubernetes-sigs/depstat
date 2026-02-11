@@ -40,6 +40,9 @@ type WhyResult struct {
 	MainModules []string  `json:"mainModules"`
 	Truncated   bool      `json:"truncated,omitempty"`
 	TotalPaths  int       `json:"totalPaths,omitempty"`
+	// Pre-computed graph data for SVG/DOT output (avoids expensive path enumeration)
+	NodeSet map[string]bool  `json:"-"`
+	EdgeSet map[svgEdge]bool `json:"-"`
 }
 
 const (
@@ -48,6 +51,7 @@ const (
 )
 
 var whyMaxPaths int
+var whyMaxDepth int
 var whySplitTestOnly bool
 
 var whyCmd = &cobra.Command{
@@ -132,9 +136,16 @@ func runWhy(cmd *cobra.Command, args []string) error {
 	}
 	sort.Strings(result.DirectDeps)
 
-	// Pre-compute which nodes can reach the target to avoid full-graph DFS.
+	// Pre-compute which nodes can reach the target to prune DFS.
 	reachable := computeReachableToTarget(target, depGraph.Graph)
-	if !reachable[target] {
+	anyMainReachable := false
+	for _, mainMod := range depGraph.MainModules {
+		if reachable[mainMod] {
+			anyMainReachable = true
+			break
+		}
+	}
+	if !anyMainReachable {
 		if jsonOutput {
 			return outputWhyJSON(result)
 		}
@@ -142,7 +153,29 @@ func runWhy(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Find all paths from main modules to target.
+	// For SVG/DOT output, compute the path subgraph directly in O(V+E)
+	// instead of enumerating individual paths (which can be exponentially slow).
+	if svgOutput || dotOutput {
+		nodeSet, edgeSet := computePathSubgraph(depGraph.MainModules, depGraph.Graph, reachable)
+		if len(nodeSet) == 0 {
+			if svgOutput {
+				return outputWhySVG(result)
+			}
+			fmt.Printf("Dependency %q found in graph, but no paths were discovered.\n", target)
+			return nil
+		}
+		result.NodeSet = nodeSet
+		result.EdgeSet = edgeSet
+		result.TotalPaths = len(edgeSet) // edge count as proxy for header
+		fmt.Fprintf(cmd.ErrOrStderr(), "[depstat why] subgraph nodes=%d edges=%d\n", len(nodeSet), len(edgeSet))
+
+		if dotOutput {
+			return outputWhyDOT(result, depGraph)
+		}
+		return outputWhySVG(result)
+	}
+
+	// For text/JSON output, enumerate individual paths using DFS.
 	var allPaths [][]string
 	if len(depGraph.MainModules) == 0 {
 		return fmt.Errorf("no main modules available to search")
@@ -193,19 +226,116 @@ func runWhy(cmd *cobra.Command, args []string) error {
 	})
 	result.TotalPaths = len(result.Paths)
 
-	outputFn := outputWhyText
 	if jsonOutput {
-		outputFn = outputWhyJSON
-	} else if dotOutput {
-		outputFn = func(res WhyResult) error { return outputWhyDOT(res, depGraph) }
-	} else if svgOutput {
-		outputFn = outputWhySVG
+		return outputWhyJSON(result)
 	}
-	return outputFn(result)
+	return outputWhyText(result)
+}
+
+// computeReachableToTarget does a reverse BFS from target to find all nodes
+// that can reach it, allowing DFS to prune dead-end branches early.
+func computeReachableToTarget(target string, graph map[string][]string) map[string]bool {
+	// Build reverse adjacency list
+	reverse := make(map[string][]string)
+	for from, tos := range graph {
+		for _, to := range tos {
+			reverse[to] = append(reverse[to], from)
+		}
+	}
+	// BFS backward from target
+	reachable := map[string]bool{target: true}
+	queue := []string{target}
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		for _, prev := range reverse[cur] {
+			if !reachable[prev] {
+				reachable[prev] = true
+				queue = append(queue, prev)
+			}
+		}
+	}
+	return reachable
+}
+
+// computePathSubgraph computes the set of nodes and edges that lie on any path
+// from a main module to the target, using bidirectional reachability in O(V+E).
+// The 'reachable' map (backward BFS from target) must already be computed.
+func computePathSubgraph(mainModules []string, graph map[string][]string, reachable map[string]bool) (map[string]bool, map[svgEdge]bool) {
+	// Forward BFS from main modules, constrained to nodes that can reach the target.
+	forward := make(map[string]bool)
+	queue := make([]string, 0)
+	for _, m := range mainModules {
+		if reachable[m] {
+			forward[m] = true
+			queue = append(queue, m)
+		}
+	}
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		for _, next := range graph[cur] {
+			if reachable[next] && !forward[next] {
+				forward[next] = true
+				queue = append(queue, next)
+			}
+		}
+	}
+
+	// Collect edges between path nodes while removing back-edges from cycles.
+	nodeSet := forward // forward ⊆ reachable by construction
+	adj := make(map[string][]string)
+	nodes := make([]string, 0, len(nodeSet))
+	for node := range nodeSet {
+		nodes = append(nodes, node)
+	}
+	sort.Strings(nodes)
+	for _, from := range nodes {
+		for _, to := range graph[from] {
+			if nodeSet[to] {
+				adj[from] = append(adj[from], to)
+			}
+		}
+		sort.Strings(adj[from])
+	}
+
+	const (
+		visitUnseen = 0
+		visitActive = 1
+		visitDone   = 2
+	)
+	state := make(map[string]int)
+	edgeSet := make(map[svgEdge]bool)
+
+	var dfs func(string)
+	dfs = func(cur string) {
+		state[cur] = visitActive
+		for _, next := range adj[cur] {
+			switch state[next] {
+			case visitUnseen:
+				edgeSet[svgEdge{From: cur, To: next}] = true
+				dfs(next)
+			case visitActive:
+				// Skip back-edge to avoid cycles in the rendered graph.
+			default:
+				edgeSet[svgEdge{From: cur, To: next}] = true
+			}
+		}
+		state[cur] = visitDone
+	}
+
+	for _, node := range nodes {
+		if state[node] == visitUnseen {
+			dfs(node)
+		}
+	}
+
+	return nodeSet, edgeSet
 }
 
 // findAllPaths finds paths from start to target using DFS and appends to out.
 // If maxPaths > 0, search stops once out reaches maxPaths.
+// If whyMaxDepth > 0, paths longer than whyMaxDepth hops are pruned.
 func findAllPaths(start, target string, graph map[string][]string, reachable map[string]bool, currentPath []string, visited map[string]bool, out *[][]string, maxPaths int) {
 	if start == target {
 		pathCopy := make([]string, len(currentPath)+1)
@@ -217,6 +347,9 @@ func findAllPaths(start, target string, graph map[string][]string, reachable map
 		return
 	}
 	if !reachable[start] {
+		return
+	}
+	if whyMaxDepth > 0 && len(currentPath) >= whyMaxDepth {
 		return
 	}
 
@@ -237,31 +370,6 @@ func findAllPaths(start, target string, graph map[string][]string, reachable map
 			return
 		}
 	}
-}
-
-func computeReachableToTarget(target string, graph map[string][]string) map[string]bool {
-	rev := make(map[string][]string)
-	for from, tos := range graph {
-		for _, to := range tos {
-			rev[to] = append(rev[to], from)
-		}
-	}
-	reachable := map[string]bool{}
-	queue := []string{target}
-	for len(queue) > 0 {
-		current := queue[0]
-		queue = queue[1:]
-		if reachable[current] {
-			continue
-		}
-		reachable[current] = true
-		for _, prev := range rev[current] {
-			if !reachable[prev] {
-				queue = append(queue, prev)
-			}
-		}
-	}
-	return reachable
 }
 
 func outputWhyJSON(result WhyResult) error {
@@ -329,16 +437,25 @@ func outputWhyDOT(result WhyResult, depGraph *DependencyOverview) error {
 	fmt.Println("node [shape=box, style=filled, fillcolor=white];")
 	fmt.Println()
 
-	// Collect all nodes and edges from paths
+	// Use pre-computed subgraph if available, otherwise extract from paths.
 	nodes := make(map[string]bool)
 	edges := make(map[string]bool)
 
-	for _, wp := range result.Paths {
-		for i, node := range wp.Path {
-			nodes[node] = true
-			if i > 0 {
-				edge := fmt.Sprintf("%s -> %s", wp.Path[i-1], node)
-				edges[edge] = true
+	if result.NodeSet != nil {
+		for n := range result.NodeSet {
+			nodes[n] = true
+		}
+		for e := range result.EdgeSet {
+			edges[fmt.Sprintf("%s -> %s", e.From, e.To)] = true
+		}
+	} else {
+		for _, wp := range result.Paths {
+			for i, node := range wp.Path {
+				nodes[node] = true
+				if i > 0 {
+					edge := fmt.Sprintf("%s -> %s", wp.Path[i-1], node)
+					edges[edge] = true
+				}
 			}
 		}
 	}
@@ -386,6 +503,7 @@ func init() {
 	whyCmd.Flags().BoolVarP(&dotOutput, "dot", "", false, "Output in DOT format for Graphviz")
 	whyCmd.Flags().BoolVarP(&svgOutput, "svg", "s", false, "Output as self-contained SVG diagram")
 	whyCmd.Flags().IntVar(&whyMaxPaths, "max-paths", whyDefaultMaxPaths, "Maximum dependency paths to search. Set 0 for no limit")
+	whyCmd.Flags().IntVar(&whyMaxDepth, "max-depth", 0, "Maximum path depth in hops (0 = unlimited). Useful for limiting DFS on deep graphs")
 	whyCmd.Flags().BoolVar(&whySplitTestOnly, "split-test-only", false, "Exclude test-only dependencies when finding paths (uses go mod why -m)")
 	whyCmd.Flags().StringSliceVar(&excludeModules, "exclude-modules", []string{}, "Exclude module path patterns (repeatable, supports * wildcard)")
 	whyCmd.Flags().StringSliceVarP(&mainModules, "mainModules", "m", []string{}, "Specify main modules")

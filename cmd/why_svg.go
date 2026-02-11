@@ -50,24 +50,33 @@ const (
 )
 
 func outputWhySVG(result WhyResult) error {
-	if !result.Found || len(result.Paths) == 0 {
+	// Use pre-computed subgraph if available (O(V+E) fast path),
+	// otherwise extract from enumerated paths (backward compat).
+	var nodeSet map[string]bool
+	var edgeSet map[svgEdge]bool
+
+	if result.NodeSet != nil {
+		nodeSet = result.NodeSet
+		edgeSet = result.EdgeSet
+	} else if len(result.Paths) > 0 {
+		nodeSet = make(map[string]bool)
+		edgeSet = make(map[svgEdge]bool)
+		for _, wp := range result.Paths {
+			for i, node := range wp.Path {
+				nodeSet[node] = true
+				if i > 0 {
+					edgeSet[svgEdge{From: wp.Path[i-1], To: node}] = true
+				}
+			}
+		}
+	}
+
+	if len(nodeSet) == 0 {
 		fmt.Printf(`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="80">
 <text x="200" y="40" text-anchor="middle" font-family="sans-serif" font-size="14">No dependency paths found for %s</text>
 </svg>
 `, xmlEscape(result.Target))
 		return nil
-	}
-
-	// Extract unique nodes and edges from paths
-	nodeSet := make(map[string]bool)
-	edgeSet := make(map[svgEdge]bool)
-	for _, wp := range result.Paths {
-		for i, node := range wp.Path {
-			nodeSet[node] = true
-			if i > 0 {
-				edgeSet[svgEdge{From: wp.Path[i-1], To: node}] = true
-			}
-		}
 	}
 
 	// Assign layers via BFS using longest path from root
@@ -147,7 +156,11 @@ func outputWhySVG(result WhyResult) error {
 	// Title
 	fmt.Fprintf(&b, `<text x="%.1f" y="28" text-anchor="middle" font-size="14" font-weight="600" fill="#333">Why is %s included?</text>`, svgWidth/2, xmlEscape(result.Target))
 	fmt.Fprintln(&b)
-	fmt.Fprintf(&b, `<text x="%.1f" y="46" text-anchor="middle" font-size="11" fill="#888">%d paths, %d direct dependent(s)</text>`, svgWidth/2, len(result.Paths), len(result.DirectDeps))
+	pathCount := len(result.Paths)
+	if pathCount == 0 {
+		pathCount = result.TotalPaths
+	}
+	fmt.Fprintf(&b, `<text x="%.1f" y="46" text-anchor="middle" font-size="11" fill="#888">%d paths, %d direct dependent(s)</text>`, svgWidth/2, pathCount, len(result.DirectDeps))
 	fmt.Fprintln(&b)
 
 	// Legend
@@ -236,8 +249,15 @@ func assignLayers(nodeSet map[string]bool, edgeSet map[svgEdge]bool, result WhyR
 		}
 	}
 
-	// BFS assigning max depth
+	// BFS assigning max depth, with safety cap to prevent infinite loops
+	// in case the edge set contains cycles.
+	maxIter := len(nodeSet) * len(nodeSet) * 2
+	iter := 0
 	for len(queue) > 0 {
+		if iter >= maxIter {
+			break
+		}
+		iter++
 		cur := queue[0]
 		queue = queue[1:]
 		for _, next := range adj[cur] {

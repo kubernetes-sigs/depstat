@@ -8,6 +8,165 @@ import (
 	"testing"
 )
 
+func TestComputePathSubgraphDiamond(t *testing.T) {
+	// Diamond: A→B→D, A→C→D
+	graph := map[string][]string{
+		"A": {"B", "C"},
+		"B": {"D"},
+		"C": {"D"},
+	}
+	reachable := computeReachableToTarget("D", graph)
+	nodeSet, edgeSet := computePathSubgraph([]string{"A"}, graph, reachable)
+
+	// All 4 nodes should be in the subgraph
+	for _, n := range []string{"A", "B", "C", "D"} {
+		if !nodeSet[n] {
+			t.Errorf("expected node %s in subgraph", n)
+		}
+	}
+	if len(nodeSet) != 4 {
+		t.Errorf("expected 4 nodes, got %d", len(nodeSet))
+	}
+
+	// All 4 edges: A→B, A→C, B→D, C→D
+	expectedEdges := []svgEdge{
+		{"A", "B"}, {"A", "C"}, {"B", "D"}, {"C", "D"},
+	}
+	for _, e := range expectedEdges {
+		if !edgeSet[e] {
+			t.Errorf("expected edge %s→%s in subgraph", e.From, e.To)
+		}
+	}
+	if len(edgeSet) != 4 {
+		t.Errorf("expected 4 edges, got %d", len(edgeSet))
+	}
+}
+
+func TestComputePathSubgraphPrunesUnreachable(t *testing.T) {
+	// A→B→D, A→C→E (E is a dead end, not connected to D)
+	graph := map[string][]string{
+		"A": {"B", "C"},
+		"B": {"D"},
+		"C": {"E"},
+	}
+	reachable := computeReachableToTarget("D", graph)
+	nodeSet, edgeSet := computePathSubgraph([]string{"A"}, graph, reachable)
+
+	// Only A, B, D should be in the subgraph (C and E can't reach D)
+	for _, n := range []string{"A", "B", "D"} {
+		if !nodeSet[n] {
+			t.Errorf("expected node %s in subgraph", n)
+		}
+	}
+	if nodeSet["C"] || nodeSet["E"] {
+		t.Error("C and E should not be in subgraph (can't reach target D)")
+	}
+	if len(edgeSet) != 2 {
+		t.Errorf("expected 2 edges (A→B, B→D), got %d", len(edgeSet))
+	}
+}
+
+func TestComputePathSubgraphMultipleMainModules(t *testing.T) {
+	graph := map[string][]string{
+		"M1": {"A"},
+		"M2": {"B"},
+		"A":  {"C"},
+		"B":  {"C"},
+	}
+	reachable := computeReachableToTarget("C", graph)
+	nodeSet, edgeSet := computePathSubgraph([]string{"M1", "M2"}, graph, reachable)
+
+	if len(nodeSet) != 5 {
+		t.Errorf("expected 5 nodes, got %d", len(nodeSet))
+	}
+	if len(edgeSet) != 4 {
+		t.Errorf("expected 4 edges, got %d", len(edgeSet))
+	}
+}
+
+func TestComputePathSubgraphKeepsSameDepthEdges(t *testing.T) {
+	// A→B→C→D and A→C (B and C same BFS depth from A).
+	graph := map[string][]string{
+		"A": {"B", "C"},
+		"B": {"C"},
+		"C": {"D"},
+	}
+	reachable := computeReachableToTarget("D", graph)
+	nodeSet, edgeSet := computePathSubgraph([]string{"A"}, graph, reachable)
+
+	for _, n := range []string{"A", "B", "C", "D"} {
+		if !nodeSet[n] {
+			t.Errorf("expected node %s in subgraph", n)
+		}
+	}
+	if !edgeSet[svgEdge{"B", "C"}] {
+		t.Error("expected same-depth edge B→C to be included")
+	}
+}
+
+func TestFindAllPathsMaxDepth(t *testing.T) {
+	// Chain: A→B→C→D→E (depth 4)
+	graph := map[string][]string{
+		"A": {"B"},
+		"B": {"C"},
+		"C": {"D"},
+		"D": {"E"},
+	}
+	reachable := map[string]bool{"A": true, "B": true, "C": true, "D": true, "E": true}
+
+	// With maxDepth=3, paths longer than 3 hops should be pruned
+	oldMaxDepth := whyMaxDepth
+	whyMaxDepth = 3
+	defer func() { whyMaxDepth = oldMaxDepth }()
+
+	var out [][]string
+	findAllPaths("A", "E", graph, reachable, []string{}, map[string]bool{}, &out, 0)
+	if len(out) != 0 {
+		t.Fatalf("expected 0 paths with maxDepth=3 (path is 4 hops), got %d", len(out))
+	}
+
+	// With maxDepth=5, the path should be found
+	whyMaxDepth = 5
+	findAllPaths("A", "E", graph, reachable, []string{}, map[string]bool{}, &out, 0)
+	if len(out) != 1 {
+		t.Fatalf("expected 1 path with maxDepth=5, got %d", len(out))
+	}
+}
+
+func TestOutputWhySVGWithPrecomputedGraph(t *testing.T) {
+	result := WhyResult{
+		Target:      "D",
+		Found:       true,
+		MainModules: []string{"A"},
+		DirectDeps:  []string{"B", "C"},
+		TotalPaths:  4,
+		NodeSet:     map[string]bool{"A": true, "B": true, "C": true, "D": true},
+		EdgeSet: map[svgEdge]bool{
+			{"A", "B"}: true, {"A", "C"}: true,
+			{"B", "D"}: true, {"C", "D"}: true,
+		},
+	}
+
+	output := captureStdout(t, func() {
+		if err := outputWhySVG(result); err != nil {
+			t.Fatalf("outputWhySVG returned error: %v", err)
+		}
+	})
+
+	if !strings.Contains(output, "<svg") {
+		t.Fatal("expected SVG output")
+	}
+	if !strings.Contains(output, "Why is D included?") {
+		t.Fatal("expected title in SVG")
+	}
+	// Check all 4 nodes are rendered
+	for _, node := range []string{"A", "B", "C", "D"} {
+		if !strings.Contains(output, "<title>"+node+"</title>") {
+			t.Errorf("expected node %s in SVG output", node)
+		}
+	}
+}
+
 func TestFindAllPathsHonorsLimit(t *testing.T) {
 	graph := map[string][]string{
 		"A": {"B", "C"},
