@@ -111,3 +111,52 @@ func TestDiffSummary(t *testing.T) {
 		t.Fatalf("expected VersionChangesCount 2, got %d", summary.VersionChangesCount)
 	}
 }
+
+func TestSplitCyclesByTestStatus(t *testing.T) {
+	cycles := []Chain{
+		{"A", "B", "A"},
+		{"C", "D", "E", "C"},
+		{"F", "G", "F"},
+	}
+	testOnlySet := map[string]bool{
+		"A": true,
+		"B": true,
+		"C": true,
+		"D": true,
+		"E": false,
+	}
+
+	nonTest, testOnly := splitCyclesByTestStatus(cycles, testOnlySet)
+
+	if len(testOnly) != 1 || !isSliceSame(testOnly[0], Chain{"A", "B", "A"}) {
+		t.Fatalf("expected only the A-B cycle to be test-only, got %v", testOnly)
+	}
+	if len(nonTest) != 2 {
+		t.Fatalf("expected 2 non-test cycles, got %d (%v)", len(nonTest), nonTest)
+	}
+	foundCDE := false
+	foundFG := false
+	for _, c := range nonTest {
+		if isSliceSame(c, Chain{"C", "D", "E", "C"}) {
+			foundCDE = true
+		}
+		if isSliceSame(c, Chain{"F", "G", "F"}) {
+			foundFG = true
+		}
+	}
+	if !foundCDE || !foundFG {
+		t.Fatalf("expected non-test cycles to include C-D-E and F-G, got %v", nonTest)
+	}
+}
+
+func TestSplitCyclesByTestStatusEmptyTestOnlySet(t *testing.T) {
+	cycles := []Chain{{"A", "B", "A"}}
+	nonTest, testOnly := splitCyclesByTestStatus(cycles, map[string]bool{})
+
+	if len(testOnly) != 0 {
+		t.Fatalf("expected no test-only cycles with an empty set, got %v", testOnly)
+	}
+	if len(nonTest) != 1 {
+		t.Fatalf("expected the cycle to be classified as non-test, got %v", nonTest)
+	}
+}

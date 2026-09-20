@@ -33,3 +33,43 @@ func TestResolveRepoFromGoImportIgnoresNonMatchingOrNonGit(t *testing.T) {
 		t.Fatalf("expected empty repo, got %q", got)
 	}
 }
+
+func TestExtractGitHubRepo(t *testing.T) {
+	cases := []struct {
+		modPath string
+		want    string
+	}{
+		{"github.com/kubernetes/klog", "kubernetes/klog"},
+		{"github.com/kubernetes/klog/v2", "kubernetes/klog"},
+		{"github.com/kubernetes/klog/v10", "kubernetes/klog"},
+		{"github.com/kubernetes", ""},
+		{"github.com", ""},
+		{"github.com/kubernetes/klog/subpkg", "kubernetes/klog"},
+		{"github.com/owner/v3", ""},
+	}
+	for _, c := range cases {
+		got := extractGitHubRepo(c.modPath)
+		if got != c.want {
+			t.Errorf("extractGitHubRepo(%q) = %q, want %q", c.modPath, got, c.want)
+		}
+	}
+}
+
+func TestIsAllDigits(t *testing.T) {
+	cases := []struct {
+		in   string
+		want bool
+	}{
+		{"", false},
+		{"2", true},
+		{"10", true},
+		{"2a", false},
+		{"v2", false},
+	}
+	for _, c := range cases {
+		got := isAllDigits(c.in)
+		if got != c.want {
+			t.Errorf("isAllDigits(%q) = %v, want %v", c.in, got, c.want)
+		}
+	}
+}
